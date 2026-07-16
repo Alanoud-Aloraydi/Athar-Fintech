@@ -1,0 +1,107 @@
+
+"""
+Analytics DTOs (Presentation layer).
+
+Define the API's public contract for the spending/Oasis summary endpoints.
+Like `schemas/transactions.py`, this reuses `CategoryEnum` directly from
+the Business layer (Presentation -> Business is an allowed dependency
+direction) rather than duplicating it.
+"""
+
+from __future__ import annotations
+
+from datetime import date
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+from app.business.categorization.models import CategoryEnum
+
+
+class CategoryBreakdownDTO(BaseModel):
+    """Aggregated spend for a single category, part of an analytics summary."""
+
+    category: CategoryEnum
+    total_amount: float = Field(description="Sum of transaction amounts in this category")
+    transaction_count: int = Field(description="Number of transactions in this category")
+
+
+class AnalyticsSummaryDTO(BaseModel):
+    """
+    Outbound response for `GET /analytics/{user_id}/summary`.
+
+    Combines a plain financial rollup (income, expenses, per-category
+    breakdown) with the cumulative Oasis growth/health scores implied by
+    the user's transaction history, so the Flutter client can render both
+    the numbers and the 3D Oasis state from a single response.
+    """
+
+    user_id: UUID
+    total_income: float = Field(description="Sum of all INCOME-type transaction amounts")
+    total_expenses: float = Field(description="Sum of all EXPENSE-type transaction amounts")
+    net_flow: float = Field(description="total_income - total_expenses")
+    transaction_count: int = Field(description="Total number of transactions considered")
+    spending_by_category: list[CategoryBreakdownDTO] = Field(
+        description="Per-category breakdown across all transactions"
+    )
+    oasis_growth_score: float = Field(
+        description="The user's persisted cumulative Oasis growth stat"
+    )
+    oasis_health_score: float = Field(
+        description="The user's persisted cumulative Oasis health stat"
+    )
+
+
+class GoalProgressDTO(BaseModel):
+    """Compact active-goal progress, embedded in `DashboardSummaryDTO`."""
+
+    goal_id: UUID
+    title: str
+    target_amount: float
+    saved_amount: float
+    progress_ratio: float = Field(
+        description="saved_amount / target_amount, clamped to [0, 1] in normal operation"
+    )
+
+
+class SmartInsightsDTO(BaseModel):
+    """
+    Lightweight algorithmic insights block, computed entirely from the
+    user's own recent activity (no external data, no third-party model).
+    """
+
+    spending_velocity_per_day: float = Field(
+        description="Average EXPENSE amount per day over the trailing window"
+    )
+    projected_goal_completion_date: date | None = Field(
+        default=None,
+        description=(
+            "Predicted date the active goal is reached at the current savings "
+            "rate, or null if there's no active goal or the recent savings "
+            "rate is negligible."
+        ),
+    )
+    trajectory_message: str = Field(
+        description="Short, dynamic, algorithmically-generated status message (warning or praise)"
+    )
+
+
+class DashboardSummaryDTO(BaseModel):
+    """
+    Outbound response for the unified `GET /analytics/{user_id}` endpoint —
+    everything the Flutter dashboard needs in a single call: balance, active
+    goal progress, expense breakdown, Oasis scores, and Smart Insights.
+    """
+
+    user_id: UUID
+    current_balance: float = Field(description="The user's current profiles.current_balance")
+    total_income: float
+    total_expenses: float
+    net_flow: float
+    active_goal: GoalProgressDTO | None = Field(
+        default=None, description="The user's active Financial Goal, or null if none"
+    )
+    spending_by_category: list[CategoryBreakdownDTO]
+    oasis_growth_score: float
+    oasis_health_score: float
+    insights: SmartInsightsDTO
