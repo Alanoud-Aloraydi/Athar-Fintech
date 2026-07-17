@@ -12,6 +12,11 @@
 
   Either way, `window.setVisiblePalmCount(n)` works the same: shows
   Palm_01..Palm_0n and hides the rest (all 12 palms live in the scene).
+
+  Lifecycle events posted to Flutter:
+    {"event":"ready"}  — scene loaded, initial palm count applied.
+    {"event":"error","message":"..."}  — loading failed for any reason
+      (network, JS exception, timeout, etc.).
 -->
 <html lang="ar" dir="rtl">
 <head>
@@ -49,16 +54,7 @@
   <div id="oasis-loading">جاري تحميل الواحة...</div>
   <canvas id="oasis-canvas"></canvas>
 
-  <script type="module">
-    import { Application } from 'https://unpkg.com/@splinetool/runtime@1.9.48/build/runtime.js';
-
-    const SCENE_URL  = 'https://prod.spline.design/oa7Ns7PvmCdHvQCP/scene.splinecode';
-    const TOTAL_PALMS = 12;
-
-    const canvas    = document.getElementById('oasis-canvas');
-    const loadingEl = document.getElementById('oasis-loading');
-    const app       = new Application(canvas);
-
+  <script>
     // ── Outbound: send lifecycle events to Flutter ────────────────────────
     // Tries both transports; only one will be active at runtime.
     function postToFlutter(payload) {
@@ -72,16 +68,69 @@
       } catch (_) {}
     }
 
+    // ── Global error fence ────────────────────────────────────────────────
+    // Catches synchronous JS exceptions and unhandled promise rejections
+    // that occur inside the module below. Reports them to Flutter so the
+    // fallback UI is shown instead of a blank/frozen canvas.
+    var _errorReported = false;
+
+    function reportError(msg) {
+      if (_errorReported) return;
+      _errorReported = true;
+      var loadingEl = document.getElementById('oasis-loading');
+      if (loadingEl) loadingEl.textContent = 'تعذّر تحميل الواحة';
+      postToFlutter({ event: 'error', message: String(msg || 'unknown error') });
+    }
+
+    window.onerror = function (message, source, lineno, colno, error) {
+      reportError(error ? (error.message || message) : message);
+      return true; // prevent default browser error output
+    };
+
+    window.addEventListener('unhandledrejection', function (event) {
+      var reason = event.reason;
+      reportError(reason && reason.message ? reason.message : String(reason));
+      event.preventDefault();
+    });
+
+    // Load-time watchdog: if the scene hasn't fired "ready" within 18 seconds
+    // (slightly less than Flutter's own 20 s timeout so Flutter sees our
+    // structured error first), report a timeout error.
+    var _sceneReady = false;
+    var _watchdog = setTimeout(function () {
+      if (!_sceneReady) {
+        reportError('Scene load timed out');
+      }
+    }, 18000);
+  </script>
+
+  <script type="module">
+    import { Application } from 'https://unpkg.com/@splinetool/runtime@1.9.48/build/runtime.js';
+
+    const SCENE_URL   = 'https://prod.spline.design/oa7Ns7PvmCdHvQCP/scene.splinecode';
+    const TOTAL_PALMS = 12;
+
+    const canvas    = document.getElementById('oasis-canvas');
+    const loadingEl = document.getElementById('oasis-loading');
+    const app       = new Application(canvas);
+
     // ── Palm visibility ───────────────────────────────────────────────────
     function palmName(i) {
       return 'Palm_' + String(i).padStart(2, '0');
     }
 
+    // Exposed to Flutter via WebViewController.runJavaScript (native) or
+    // called directly by the postMessage listener (web). Clamps to [1, 12]
+    // so a bad value can never hide every palm or reference Palm_13+.
     window.setVisiblePalmCount = function (count) {
       const target = Math.max(1, Math.min(TOTAL_PALMS, Math.round(count)));
       for (let i = 1; i <= TOTAL_PALMS; i++) {
-        const palm = app.getObjectByName(palmName(i));
-        if (palm) palm.visible = (i <= target);
+        try {
+          const palm = app.getObjectByName(palmName(i));
+          if (palm) palm.visible = (i <= target);
+        } catch (_) {
+          // Individual palm lookup failures are non-fatal.
+        }
       }
       return target;
     };
@@ -102,16 +151,16 @@
     app
       .load(SCENE_URL)
       .then(() => {
-        loadingEl.style.display = 'none';
-        window.setVisiblePalmCount(1); // seed palm; Flutter will override
+        if (loadingEl) loadingEl.style.display = 'none';
+        // Seed palm visible by default; Flutter calls setVisiblePalmCount
+        // with the real growth-derived count once Oasis data loads.
+        window.setVisiblePalmCount(1);
+        window._sceneReady = true;
+        clearTimeout(window._watchdog);
         postToFlutter({ event: 'ready' });
       })
       .catch((err) => {
-        loadingEl.textContent = 'تعذّر تحميل الواحة';
-        postToFlutter({
-          event: 'error',
-          message: String(err && err.message ? err.message : err),
-        });
+        reportError(err && err.message ? err.message : String(err));
       });
   </script>
 </body>
