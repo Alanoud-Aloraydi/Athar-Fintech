@@ -1,3 +1,5 @@
+import 'dart:async' show TimeoutException;
+
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
@@ -21,39 +23,60 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final phoneController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  bool isLoading = false;
 
+  bool isLoading = false;
   bool agreedToTerms = false;
   bool agreedToDataLink = false;
+
+  /// Non-null when an auth attempt failed. Shown inline below the form.
+  /// Cleared automatically at the start of every new attempt.
+  String? _errorMessage;
 
   // Mirrors Supabase's default minimum password length. Checking this
   // client-side gives instant Arabic feedback instead of a round trip to
   // the server just to learn the password was too short.
   static const int _minPasswordLength = 6;
+  static const _timeout = Duration(seconds: 15);
 
   bool get canSubmit => agreedToTerms && agreedToDataLink && !isLoading;
+
+  @override
+  void dispose() {
+    firstNameController.dispose();
+    lastNameController.dispose();
+    phoneController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _submit() async {
     if (!canSubmit) return;
 
     if (passwordController.text.length < _minPasswordLength) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('كلمة المرور يجب أن تكون 6 أحرف على الأقل')),
-      );
+      setState(() => _errorMessage = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل');
       return;
     }
 
-    setState(() => isLoading = true);
+    // Clear previous error and start loading.
+    setState(() {
+      isLoading = true;
+      _errorMessage = null;
+    });
+
     try {
-      final response = await _authService.signUp(
-        email: emailController.text.trim(),
-        password: passwordController.text,
-        metadata: {
-          'first_name': firstNameController.text.trim(),
-          'last_name': lastNameController.text.trim(),
-          'phone': phoneController.text.trim(),
-        },
-      );
+      final response = await _authService
+          .signUp(
+            email: emailController.text.trim(),
+            password: passwordController.text,
+            metadata: {
+              'first_name': firstNameController.text.trim(),
+              'last_name': lastNameController.text.trim(),
+              'phone': phoneController.text.trim(),
+            },
+          )
+          .timeout(_timeout);
+
       if (!mounted) return;
 
       // Supabase only returns a session here if the project's "Confirm
@@ -70,17 +93,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم إنشاء الحساب بنجاح، يمكنك تسجيل الدخول الآن')),
+          const SnackBar(
+              content: Text('تم إنشاء الحساب بنجاح، يمكنك تسجيل الدخول الآن')),
         );
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const LoginScreen()),
         );
       }
+    } on TimeoutException catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = friendlyAuthErrorMessage(e,
+          fallback: 'استغرق الطلب وقتاً طويلاً، تحقّق من اتصالك وحاول مرة أخرى'));
     } catch (e) {
       if (!mounted) return;
-      final message = friendlyAuthErrorMessage(e, fallback: 'تعذّر إنشاء الحساب، حاول مرة أخرى');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      setState(() => _errorMessage = friendlyAuthErrorMessage(
+          e, fallback: 'تعذّر إنشاء الحساب، حاول مرة أخرى'));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -98,17 +126,36 @@ class _SignUpScreenState extends State<SignUpScreen> {
             children: [
               const Text('مرحباً بك في أثَر 🌴', style: AppTextStyles.h2),
               const SizedBox(height: 6),
-              const Text('أنشئ حسابك للبدء في تتبّع أهدافك المالية', style: AppTextStyles.body),
+              const Text('أنشئ حسابك للبدء في تتبّع أهدافك المالية',
+                  style: AppTextStyles.body),
               const SizedBox(height: 26),
-              AppTextField(controller: firstNameController, label: 'الاسم الأول', icon: Icons.person_outline),
+              AppTextField(
+                  controller: firstNameController,
+                  label: 'الاسم الأول',
+                  icon: Icons.person_outline),
               const SizedBox(height: 14),
-              AppTextField(controller: lastNameController, label: 'الاسم الثاني', icon: Icons.person_outline),
+              AppTextField(
+                  controller: lastNameController,
+                  label: 'الاسم الثاني',
+                  icon: Icons.person_outline),
               const SizedBox(height: 14),
-              AppTextField(controller: phoneController, label: 'رقم الجوال', icon: Icons.phone_outlined, keyboardType: TextInputType.phone),
+              AppTextField(
+                  controller: phoneController,
+                  label: 'رقم الجوال',
+                  icon: Icons.phone_outlined,
+                  keyboardType: TextInputType.phone),
               const SizedBox(height: 14),
-              AppTextField(controller: emailController, label: 'البريد الإلكتروني', icon: Icons.email_outlined, keyboardType: TextInputType.emailAddress),
+              AppTextField(
+                  controller: emailController,
+                  label: 'البريد الإلكتروني',
+                  icon: Icons.email_outlined,
+                  keyboardType: TextInputType.emailAddress),
               const SizedBox(height: 14),
-              AppTextField(controller: passwordController, label: 'الرقم السري', icon: Icons.lock_outline, obscureText: true),
+              AppTextField(
+                  controller: passwordController,
+                  label: 'الرقم السري',
+                  icon: Icons.lock_outline,
+                  obscureText: true),
               const SizedBox(height: 22),
               SectionCard(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -116,29 +163,121 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   children: [
                     ConsentCheckboxTile(
                       value: agreedToTerms,
-                      onChanged: (v) => setState(() => agreedToTerms = v ?? false),
-                      text: 'أوافق على الشروط والأحكام وسياسة الخصوصية الخاصة بتطبيق أثَر',
+                      onChanged: (v) =>
+                          setState(() => agreedToTerms = v ?? false),
+                      text:
+                          'أوافق على الشروط والأحكام وسياسة الخصوصية الخاصة بتطبيق أثَر',
                     ),
                     const Divider(height: 4, color: AppColors.border),
                     ConsentCheckboxTile(
                       value: agreedToDataLink,
-                      onChanged: (v) => setState(() => agreedToDataLink = v ?? false),
-                      text: 'أوافق على ربط حسابي البنكي عبر خدمة المصرفية المفتوحة لتحليل صرفي وادخاري',
+                      onChanged: (v) =>
+                          setState(() => agreedToDataLink = v ?? false),
+                      text:
+                          'أوافق على ربط حسابي البنكي عبر خدمة المصرفية المفتوحة لتحليل صرفي وادخاري',
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 22),
-              PrimaryButton(text: 'إنشاء الحساب', isLoading: isLoading, onPressed: canSubmit ? _submit : null),
+              PrimaryButton(
+                text: 'إنشاء الحساب',
+                isLoading: isLoading,
+                onPressed: canSubmit ? _submit : null,
+              ),
+
+              // ── Inline error message ──────────────────────────────────
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 14),
+                _AuthErrorBanner(
+                  message: _errorMessage!,
+                  isNetwork: _errorMessage!.contains('الاتصال') ||
+                      _errorMessage!.contains('وقتاً'),
+                  onRetry: _submit,
+                ),
+              ],
+
               const SizedBox(height: 14),
               Center(
                 child: TextButton(
-                  onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
-                  child: const Text('لديك حساب بالفعل؟ سجل دخولك', style: TextStyle(color: AppColors.primaryDark)),
+                  onPressed: () => Navigator.pushReplacement(context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen())),
+                  child: const Text('لديك حساب بالفعل؟ سجل دخولك',
+                      style: TextStyle(color: AppColors.primaryDark)),
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Shared inline error widget ───────────────────────────────────────────────
+
+/// Shown below the submit button when an auth attempt fails.
+/// Displays a retry link for network / timeout errors.
+class _AuthErrorBanner extends StatelessWidget {
+  final String message;
+  final bool isNetwork;
+  final VoidCallback onRetry;
+
+  const _AuthErrorBanner({
+    required this.message,
+    required this.isNetwork,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.danger.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.danger.withOpacity(0.25)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.error_outline_rounded,
+                color: AppColors.danger, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message,
+                    style: AppTextStyles.small.copyWith(
+                      color: AppColors.danger,
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                  if (isNetwork) ...[
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: onRetry,
+                      child: Text(
+                        'إعادة المحاولة',
+                        style: AppTextStyles.small.copyWith(
+                          color: AppColors.danger,
+                          fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

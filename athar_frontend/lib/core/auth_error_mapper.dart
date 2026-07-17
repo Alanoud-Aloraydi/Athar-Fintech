@@ -1,3 +1,5 @@
+import 'dart:async' show TimeoutException;
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -19,6 +21,14 @@ String friendlyAuthErrorMessage(Object error, {String? fallback}) {
   // local dev console / CI logs, it is never rendered in the app UI.
   debugPrint('Auth error: $error');
 
+  // ── Network / timeout errors (not AuthException) ────────────────────────
+  // These happen before Supabase even responds, so they don't come wrapped
+  // in AuthException.
+  if (error is TimeoutException) {
+    return 'استغرق الطلب وقتاً طويلاً، تحقّق من اتصالك وحاول مرة أخرى';
+  }
+
+  // ── Supabase AuthException ───────────────────────────────────────────────
   if (error is AuthException) {
     final msg = error.message.toLowerCase();
 
@@ -59,6 +69,25 @@ String friendlyAuthErrorMessage(Object error, {String? fallback}) {
         msg.contains('connection')) {
       return 'تعذّر الاتصال بالخادم، تحقّق من اتصالك بالإنترنت وحاول مرة أخرى';
     }
+  }
+
+  // ── Catch-all: check raw message for network keywords ───────────────────
+  // Covers:
+  //  • Flutter Web   — "Failed to fetch", "XMLHttpRequest error"
+  //  • Native        — dart:io SocketException stringified as
+  //                    "SocketException: Failed host lookup: '...'"
+  //                    or "SocketException: Connection refused"
+  //                    (dart:io is NOT imported here to keep this file
+  //                    web-safe; we match on the string representation)
+  final raw = error.toString().toLowerCase();
+  if (raw.contains('failed to fetch') ||
+      raw.contains('xmlhttprequest') ||
+      raw.contains('socketexception') ||
+      raw.contains('failed host lookup') ||
+      raw.contains('connection refused') ||
+      raw.contains('network') ||
+      raw.contains('connection')) {
+    return 'تعذّر الاتصال بالخادم، تحقّق من اتصالك بالإنترنت وحاول مرة أخرى';
   }
 
   // Unknown / unexpected error shape -- never surface it raw.
