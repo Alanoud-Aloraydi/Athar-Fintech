@@ -5,7 +5,7 @@ import '../core/strings.dart';
 import '../theme/app_theme.dart';
 import 'main_navigation_screen.dart';
 
-const String _kQuickLoginCodeKey = 'athar_quick_login_code';
+const String _kQuickLoginCodePrefix = 'athar_quick_login_code_';
 
 enum QuickLoginMode { setup, login }
 
@@ -14,26 +14,34 @@ enum QuickLoginMode { setup, login }
 /// never re-authenticates against Supabase or the backend -- it's strictly a
 /// faster re-entry path on top of the Supabase session that AuthGate
 /// (main.dart) already found valid before routing here.
+///
+/// The stored code is scoped per Supabase `userId` (not just per device).
+/// Previously the PIN was stored under one global key, so a PIN set up for
+/// one account would incorrectly gate (or silently unlock) a *different*
+/// account signing in later on the same device/emulator -- e.g. right after
+/// a normal login/signup for a new account, the app would still prompt for
+/// a leftover PIN that had nothing to do with that account. Scoping the key
+/// by userId makes quick-login strictly "instead of" that one account's
+/// normal login, never a prompt that can leak across accounts.
 class QuickLoginScreen extends StatefulWidget {
   final QuickLoginMode mode;
-  const QuickLoginScreen({super.key, this.mode = QuickLoginMode.login});
+  final String userId;
+  const QuickLoginScreen({super.key, this.mode = QuickLoginMode.login, required this.userId});
 
-  /// True if the user has previously set up a quick-login PIN on this
+  static String _keyFor(String userId) => '$_kQuickLoginCodePrefix$userId';
+
+  /// True if the given user has previously set up a quick-login PIN on this
   /// device. AuthGate uses this to decide whether a valid Supabase session
   /// should still be gated behind the PIN screen before reaching the app.
-  static Future<bool> hasQuickLoginCode() async {
+  static Future<bool> hasQuickLoginCode(String userId) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_kQuickLoginCodeKey) != null;
+    return prefs.getString(_keyFor(userId)) != null;
   }
 
-  /// Clears the stored PIN. Call this on full sign-out -- the PIN is a
-  /// device-local shortcut for whichever account is currently signed in;
-  /// leaving it behind after logout would let it silently unlock a
-  /// *different* account's session on the same device the next time
-  /// someone signs in (since the code isn't scoped per user).
-  static Future<void> clearQuickLoginCode() async {
+  /// Clears the stored PIN for the given user. Call this on full sign-out.
+  static Future<void> clearQuickLoginCode(String userId) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_kQuickLoginCodeKey);
+    await prefs.remove(_keyFor(userId));
   }
 
   @override
@@ -68,10 +76,11 @@ class _QuickLoginScreenState extends State<QuickLoginScreen> {
   Future<void> _handleComplete() async {
     if (!mounted) return;
     final prefs = await SharedPreferences.getInstance();
+    final key = QuickLoginScreen._keyFor(widget.userId);
 
     if (widget.mode == QuickLoginMode.login) {
       setState(() => isLoading = true);
-      final storedCode = prefs.getString(_kQuickLoginCodeKey);
+      final storedCode = prefs.getString(key);
       await Future.delayed(const Duration(milliseconds: 300));
       if (!mounted) return;
       if (storedCode != null && storedCode == code) {
@@ -94,7 +103,7 @@ class _QuickLoginScreenState extends State<QuickLoginScreen> {
       } else {
         if (code == firstEntry) {
           setState(() => isLoading = true);
-          await prefs.setString(_kQuickLoginCodeKey, code);
+          await prefs.setString(key, code);
           if (!mounted) return;
           setState(() => isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('quick_login_created'))));
