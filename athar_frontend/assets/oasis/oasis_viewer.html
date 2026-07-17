@@ -105,9 +105,12 @@
   </script>
 
   <script type="module">
-    import { Application } from 'https://unpkg.com/@splinetool/runtime@1.9.48/build/runtime.js';
+    // Both files are bundled as Flutter web assets and served from the same
+    // origin — no CDN or internet connection required.
+    import { Application } from './runtime.js';
 
-    const SCENE_URL   = 'https://prod.spline.design/oa7Ns7PvmCdHvQCP/scene.splinecode';
+    // Scene exported from Spline, bundled as a local asset.
+    const SCENE_URL   = './scene.splinecode';
     const TOTAL_PALMS = 12;
 
     const canvas    = document.getElementById('oasis-canvas');
