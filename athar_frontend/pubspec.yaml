@@ -1,3 +1,4 @@
+
 name: athar
 description: "Athar - FinTech app blending offline transaction categorization with gamified financial goals."
 publish_to: 'none'
@@ -15,6 +16,7 @@ dependencies:
   supabase_flutter: ^2.8.0
   intl: ^0.19.0
   shared_preferences: ^2.3.3
+  webview_flutter: ^4.10.0
 
 dev_dependencies:
   flutter_test:
@@ -25,3 +27,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+    - assets/oasis/

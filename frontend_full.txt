@@ -238,6 +238,7 @@ import 'core/app_settings.dart';
 import 'theme/app_theme.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/main_navigation_screen.dart';
+import 'screens/quick_login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -295,17 +296,36 @@ class _AtharAppState extends State<AtharApp> {
   }
 }
 
-/// Routes to the dashboard if a Supabase session already exists (e.g. app
-/// relaunch with a persisted session), otherwise to the welcome/auth flow.
-/// Unchanged from the working version -- QuickLoginScreen sits ON TOP of
-/// this, it never replaces this check.
+/// Routes to:
+/// - WelcomeScreen, if there's no Supabase session at all (never signed in,
+///   or fully signed out).
+/// - QuickLoginScreen (PIN gate), if a Supabase session exists AND the user
+///   previously set up a quick-login PIN on this device -- this is the
+///   fast re-entry path (e.g. reopening the app after it was backgrounded
+///   or closed, session still valid) instead of dropping straight into the
+///   app with no local gate at all.
+/// - MainNavigationScreen directly, if a session exists but no PIN was ever
+///   set up (previous, simpler behavior is preserved for users who never
+///   opted into quick login).
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
     final session = Supabase.instance.client.auth.currentSession;
-    return session != null ? const MainNavigationScreen() : const WelcomeScreen();
+    if (session == null) return const WelcomeScreen();
+
+    return FutureBuilder<bool>(
+      future: QuickLoginScreen.hasQuickLoginCode(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        return snapshot.data!
+            ? const QuickLoginScreen(mode: QuickLoginMode.login)
+            : const MainNavigationScreen();
+      },
+    );
   }
 }
 
@@ -1131,7 +1151,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             if (snapshot.hasError) {
               return ListView(children: [
                 const SizedBox(height: 80),
-                ErrorRetryView(message: 'طھط¹ط°ظ‘ط± طھط­ظ…ظٹظ„ ظ„ظˆط­ط© ط§ظ„ط¨ظٹط§ظ†ط§طھ: ${snapshot.error}', onRetry: _refresh),
+                ErrorRetryView(message: friendlyLoadErrorMessage(snapshot.error), onRetry: _refresh),
               ]);
             }
 
@@ -1521,7 +1541,7 @@ class _FarmScreenState extends State<FarmScreen> {
             if (snapshot.hasError) {
               return ListView(children: [
                 const SizedBox(height: 80),
-                ErrorRetryView(message: 'طھط¹ط°ظ‘ط± طھط­ظ…ظٹظ„ ط­ط§ظ„ط© ط§ظ„ظ…ط²ط±ط¹ط©: ${snapshot.error}', onRetry: _refresh),
+                ErrorRetryView(message: friendlyLoadErrorMessage(snapshot.error), onRetry: _refresh),
               ]);
             }
 
@@ -1887,6 +1907,7 @@ import '../widgets/common_widgets.dart';
 import '../services/auth_service.dart';
 import 'welcome_screen.dart';
 import 'settings_screen.dart';
+import 'quick_login_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final String userId;
@@ -1949,6 +1970,12 @@ class ProfileScreen extends StatelessWidget {
             SecondaryButton(
               text: 'طھط³ط¬ظٹظ„ ط§ظ„ط®ط±ظˆط¬',
               onPressed: () async {
+                // Clear the device-local quick-login PIN *before* signing
+                // out of Supabase. The PIN isn't scoped to a specific
+                // account -- leaving it behind would let it silently grant
+                // access to whichever account signs in next on this same
+                // device, bypassing that account's own login entirely.
+                await QuickLoginScreen.clearQuickLoginCode();
                 await AuthService().signOut();
                 if (context.mounted) {
                   Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const WelcomeScreen()), (route) => false);
@@ -2017,6 +2044,24 @@ enum QuickLoginMode { setup, login }
 class QuickLoginScreen extends StatefulWidget {
   final QuickLoginMode mode;
   const QuickLoginScreen({super.key, this.mode = QuickLoginMode.login});
+
+  /// True if the user has previously set up a quick-login PIN on this
+  /// device. AuthGate uses this to decide whether a valid Supabase session
+  /// should still be gated behind the PIN screen before reaching the app.
+  static Future<bool> hasQuickLoginCode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kQuickLoginCodeKey) != null;
+  }
+
+  /// Clears the stored PIN. Call this on full sign-out -- the PIN is a
+  /// device-local shortcut for whichever account is currently signed in;
+  /// leaving it behind after logout would let it silently unlock a
+  /// *different* account's session on the same device the next time
+  /// someone signs in (since the code isn't scoped per user).
+  static Future<void> clearQuickLoginCode() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kQuickLoginCodeKey);
+  }
 
   @override
   State<QuickLoginScreen> createState() => _QuickLoginScreenState();
@@ -2656,6 +2701,17 @@ extension ApiExceptionArabic on ApiException {
         return 'ط­ط¯ط« ط®ط·ط£ ط؛ظٹط± ظ…طھظˆظ‚ط¹طŒ ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰';
     }
   }
+}
+
+/// For use in `FutureBuilder`/`snapshot.error` contexts. Unlike
+/// [ApiExceptionArabic.arabicMessage] (which only handles [ApiException]),
+/// `snapshot.error` can also be a raw Dart/network exception (timeouts,
+/// DNS failures, JSON parsing errors, ...) if the request never reached
+/// the backend at all -- those raw exception types are NOT safe to show
+/// verbatim either, so this always returns a safe Arabic string.
+String friendlyLoadErrorMessage(Object? error) {
+  if (error is ApiException) return error.arabicMessage;
+  return 'طھط¹ط°ظ‘ط± ط§ظ„ط§طھطµط§ظ„ ط¨ط§ظ„ط®ط§ط¯ظ…طŒ طھط­ظ‚ظ‘ظ‚ ظ…ظ† ط§طھطµط§ظ„ظƒ ط¨ط§ظ„ط¥ظ†طھط±ظ†طھ ظˆط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰';
 }
 
 /// Talks to the Athar FastAPI backend. All endpoint paths, request/response

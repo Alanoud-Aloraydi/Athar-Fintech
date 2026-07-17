@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 /// Mirrors backend `app.business.categorization.models.CategoryEnum` exactly.
@@ -239,6 +240,7 @@ class OasisState {
   final int currentStreakDays;
   final int longestStreakDays;
   final OasisEnvironment environment;
+  final int visiblePalmCount;
 
   OasisState({
     required this.userId,
@@ -247,6 +249,7 @@ class OasisState {
     required this.currentStreakDays,
     required this.longestStreakDays,
     required this.environment,
+    required this.visiblePalmCount,
   });
 
   factory OasisState.fromJson(Map<String, dynamic> json) => OasisState(
@@ -256,10 +259,13 @@ class OasisState {
         currentStreakDays: json['current_streak_days'] as int,
         longestStreakDays: json['longest_streak_days'] as int,
         environment: OasisEnvironment.fromJson(json['environment'] as Map<String, dynamic>),
+        // Defensive default for older cached responses during rollout —
+        // the backend always sends this field now.
+        visiblePalmCount: (json['visible_palm_count'] as int?) ?? 1,
       );
 }
 
-/// Mirrors `OasisImpact` (embedded in TransactionResponseDTO).
+/// Mirrors `OasisImpact` (embedded in TransactionResponseDTO and OasisSimulationResponseDTO).
 class OasisImpact {
   final double growthDelta;
   final double healthDelta;
@@ -311,5 +317,45 @@ class TransactionResult {
         oasisImpact: OasisImpact.fromJson(json['oasis_impact'] as Map<String, dynamic>),
         isReplay: (json['is_replay'] as bool?) ?? false,
         isUnusualSpend: (json['is_unusual_spend'] as bool?) ?? false,
+      );
+}
+
+/// Mirrors `OasisSimulationResponseDTO` — response of POST /oasis/{user_id}/simulate.
+///
+/// Nothing behind this response is persisted server-side; it's a pure
+/// preview used by the Farm screen's "try a transaction" panel.
+class OasisSimulationResult {
+  final AppCategory predictedCategory;
+  final OasisImpact oasisImpact;
+  final double currentGrowthLevel;
+  final double currentHealthScore;
+  final int currentVisiblePalmCount;
+  final double projectedGrowthLevel;
+  final double projectedHealthScore;
+  final int projectedVisiblePalmCount;
+  final int newlyUnlockedPalms;
+
+  OasisSimulationResult({
+    required this.predictedCategory,
+    required this.oasisImpact,
+    required this.currentGrowthLevel,
+    required this.currentHealthScore,
+    required this.currentVisiblePalmCount,
+    required this.projectedGrowthLevel,
+    required this.projectedHealthScore,
+    required this.projectedVisiblePalmCount,
+    required this.newlyUnlockedPalms,
+  });
+
+  factory OasisSimulationResult.fromJson(Map<String, dynamic> json) => OasisSimulationResult(
+        predictedCategory: AppCategoryX.fromApi(json['predicted_category'] as String),
+        oasisImpact: OasisImpact.fromJson(json['oasis_impact'] as Map<String, dynamic>),
+        currentGrowthLevel: _asDouble(json['current_growth_level']),
+        currentHealthScore: _asDouble(json['current_health_score']),
+        currentVisiblePalmCount: json['current_visible_palm_count'] as int,
+        projectedGrowthLevel: _asDouble(json['projected_growth_level']),
+        projectedHealthScore: _asDouble(json['projected_health_score']),
+        projectedVisiblePalmCount: json['projected_visible_palm_count'] as int,
+        newlyUnlockedPalms: json['newly_unlocked_palms'] as int,
       );
 }

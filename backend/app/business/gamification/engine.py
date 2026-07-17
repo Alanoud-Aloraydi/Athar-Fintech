@@ -1,4 +1,5 @@
 
+
 """
 Gamification Engine.
 
@@ -42,6 +43,23 @@ _AURA_LUMINOUS_MIN = 50.0
 # stays meaningful (and finite) even for very long streaks.
 _STREAK_MULTIPLIER_PER_DAY = 0.05
 _STREAK_MULTIPLIER_CAP = 2.5
+
+# --- Palm Oasis scene mapping -----------------------------------------
+# The Spline scene ("Palm_01".."Palm_12") ships with every palm hidden
+# except the first one or two. `palms_visible_for` is the single source
+# of truth for turning the persisted `growth_level` stat into "how many
+# of the 12 palms should be visible right now" — the Presentation layer
+# (OasisStateDTO.visible_palm_count) and the simulation preview both
+# call through this one function so the real scene and the "what if"
+# preview never drift apart.
+#
+# One new palm unlocks every `_GROWTH_PER_PALM` points of growth_level,
+# starting from a single seed palm at growth_level=0. This deliberately
+# tracks the existing aura thresholds loosely (sprouting ~ 2nd palm,
+# flourishing ~ 5th palm, luminous ~ 11th palm) without being coupled to
+# them, so either scale can be rebalanced independently.
+_TOTAL_PALMS = 12
+_GROWTH_PER_PALM = 5.0
 
 
 class GamificationEngine:
@@ -169,6 +187,32 @@ class GamificationEngine:
             streak_multiplier=round(streak_multiplier, 2),
             mood_message=mood_message,
         )
+
+    def palms_visible_for(self, growth_level: float) -> int:
+        """
+        Maps a (persisted or hypothetical) `growth_level` to how many of
+        the Spline scene's 12 named palms ("Palm_01".."Palm_12") should
+        be visible.
+
+        Single source of truth for this mapping — used both by
+        `OasisFacade.get_oasis_state` (the real, persisted count) and by
+        `OasisFacade.simulate_transaction_impact` (the "what if" preview),
+        so the live scene and the test/preview panel can never disagree
+        about what a given growth_level looks like.
+
+        Args:
+            growth_level: Cumulative Oasis growth stat, persisted or
+                hypothetical (e.g. current + a proposed transaction's
+                growth_delta). Clamped to >= 0 defensively — growth_level
+                is not expected to go negative in normal operation.
+
+        Returns:
+            An integer in [1, 12]. Every Oasis always shows at least one
+            seed palm, even at growth_level=0.
+        """
+        safe_growth = max(0.0, growth_level)
+        palm_count = 1 + int(safe_growth // _GROWTH_PER_PALM)
+        return min(_TOTAL_PALMS, palm_count)
 
     @staticmethod
     def _weather_for(health_score: float) -> str:

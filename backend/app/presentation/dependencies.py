@@ -1,4 +1,5 @@
 
+
 """
 Presentation-layer dependency wiring.
 
@@ -98,8 +99,10 @@ def get_analytics_facade(
 def get_oasis_facade(
     oasis_repository: OasisRepository = Depends(get_oasis_repository),
     gamification_engine: GamificationEngine = Depends(get_gamification_engine),
+    categorization_engine: CategorizationEngine = Depends(get_categorization_engine),
 ) -> OasisFacade:
     return OasisFacade(
         oasis_repository=oasis_repository,
         gamification_engine=gamification_engine,
+        categorization_engine=categorization_engine,
     )

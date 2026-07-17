@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -106,6 +107,32 @@ class ApiService {
     return OasisState.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  /// POST /oasis/{user_id}/simulate -> OasisSimulationResponseDTO
+  ///
+  /// Pure preview -- nothing here is persisted server-side. Used by the
+  /// Farm screen's "try a transaction" panel to show what a hypothetical
+  /// transaction would do to the Oasis (predicted category, growth/health
+  /// deltas, before/after palm count) before the user decides whether to
+  /// actually log it via [createTransaction].
+  Future<OasisSimulationResult> simulateOasisImpact({
+    required String userId,
+    required double amount,
+    required String description,
+    required String type, // "EXPENSE" | "INCOME"
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/oasis/$userId/simulate'),
+      headers: _authHeaders,
+      body: jsonEncode({
+        'amount': amount,
+        'description': description,
+        'type': type,
+      }),
+    );
+    _checkStatus(res);
+    return OasisSimulationResult.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   // --- Goals -----------------------------------------------------------------
 
   /// GET /goals/{user_id}/active -> GoalResponseDTO | null
@@ -198,7 +225,7 @@ class ApiService {
         message = decoded['detail'].toString();
       }
     } catch (_) {
-      // Non-JSON error body (e.g. a raw 502 from the platform) — fall back
+      // Non-JSON error body (e.g. a raw 502 from the platform) -- fall back
       // to the generic message above rather than surfacing raw HTML/text.
     }
     throw ApiException(res.statusCode, message);

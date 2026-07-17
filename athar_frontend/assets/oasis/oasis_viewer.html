@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<!--
+  Athar Palm Oasis — Spline scene host page.
+
+  Loaded into a Flutter WebView (see lib/widgets/palm_oasis_viewer.dart) via
+  `WebViewController.loadFlutterAsset`. Uses the official Spline runtime
+  (@splinetool/runtime, which is Three.js-based and generated directly by
+  Spline for the exported scene) rather than an <iframe> embed, so we get
+  direct object access for `getObjectByName('Palm_0X').visible = ...`.
+
+  Contract with Flutter (see palm_oasis_viewer.dart):
+    - Flutter calls `window.setVisiblePalmCount(n)` after the scene loads
+      to show Palm_01..Palm_0n and hide the rest.
+    - This page posts JSON strings to the `OasisBridge` JavaScript channel
+      for lifecycle events: {"event":"ready"} once the scene has loaded
+      and the initial palm count has been applied, or
+      {"event":"error","message":"..."} if loading fails.
+-->
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>واحة أثَر</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+    }
+    #oasis-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+    #oasis-loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, "Segoe UI", Tahoma, sans-serif;
+      color: #6b7f6b;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="oasis-loading">جاري تحميل الواحة...</div>
+  <canvas id="oasis-canvas"></canvas>
+
+  <script type="module">
+    import { Application } from 'https://unpkg.com/@splinetool/runtime@1.9.48/build/runtime.js';
+
+    // Scene link supplied by the designer — full Three.js runtime project
+    // exported directly from Spline. All 12 palms exist in the scene,
+    // named "Palm_01".."Palm_12" in order; all but the first one or two
+    // ship with Visible = Off, and get toggled on here as the user's
+    // Oasis grows.
+    const SCENE_URL = 'https://prod.spline.design/oa7Ns7PvmCdHvQCP/scene.splinecode';
+    const TOTAL_PALMS = 12;
+
+    const canvas = document.getElementById('oasis-canvas');
+    const loadingEl = document.getElementById('oasis-loading');
+    const app = new Application(canvas);
+
+    // Deliberately NOT findObjectByName / setVariable — per the scene's
+    // authoring notes, only getObjectByName + direct `.visible` writes
+    // are reliable for this export.
+    function palmName(index) {
+      return 'Palm_' + String(index).padStart(2, '0');
+    }
+
+    function postToFlutter(payload) {
+      try {
+        if (window.OasisBridge && window.OasisBridge.postMessage) {
+          window.OasisBridge.postMessage(JSON.stringify(payload));
+        }
+      } catch (_err) {
+        // No bridge available (e.g. previewing this file directly in a
+        // desktop browser during design work) — safe to ignore.
+      }
+    }
+
+    // Exposed to Flutter via WebViewController.runJavaScript. Clamps to
+    // [1, 12] defensively so a bad value from the client can never leave
+    // every palm hidden or try to reveal a Palm_13 that doesn't exist.
+    window.setVisiblePalmCount = function (count) {
+      const target = Math.max(1, Math.min(TOTAL_PALMS, Math.round(count)));
+      for (let i = 1; i <= TOTAL_PALMS; i++) {
+        const palm = app.getObjectByName(palmName(i));
+        if (palm) {
+          palm.visible = i <= target;
+        }
+      }
+      return target;
+    };
+
+    app
+      .load(SCENE_URL)
+      .then(() => {
+        loadingEl.style.display = 'none';
+        // Start every palm hidden except the seed palm; Flutter will call
+        // setVisiblePalmCount(realCount) right after this resolves with
+        // the user's actual growth-derived count.
+        window.setVisiblePalmCount(1);
+        postToFlutter({ event: 'ready' });
+      })
+      .catch((err) => {
+        loadingEl.textContent = 'تعذّر تحميل الواحة';
+        postToFlutter({ event: 'error', message: String(err && err.message ? err.message : err) });
+      });
+  </script>
+</body>
+</html>
