@@ -1,6 +1,28 @@
 modules = ["python-3.12", "bash", "web"]
-[agent]
-expertMode = true
 
 [nix]
 channel = "stable-25_05"
+
+[agent]
+expertMode = true
+
+run = "bash start.sh"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[workflows]
+runButton = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash start.sh"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"

@@ -51,9 +51,15 @@ class Settings(BaseSettings):
     )
 
     # --- CORS ---
+    # NOTE: FastAPI raises an error if allow_credentials=True is combined with
+    # the wildcard origin ["*"]. Always provide explicit origins here.
+    # In the Replit environment, start.sh sets CORS_ORIGINS at launch time.
     CORS_ORIGINS: list[str] = Field(
-        default_factory=lambda: ["*"],
-        description="Comma-separated in env: CORS_ORIGINS=https://app.example.com,https://staging.example.com",
+        default_factory=lambda: ["http://localhost:5000", "http://localhost:3000", "http://0.0.0.0:5000"],
+        description=(
+            "Comma-separated in env: CORS_ORIGINS=https://app.example.com,https://staging.example.com  "
+            "Do NOT use '*' with allow_credentials=True — FastAPI will reject the combination."
+        ),
     )
 
     @field_validator("CORS_ORIGINS", mode="before")
