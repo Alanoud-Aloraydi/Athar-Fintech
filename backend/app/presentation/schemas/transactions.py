@@ -1,4 +1,5 @@
 
+
 """
 Transaction DTOs (Presentation layer).
 
@@ -109,3 +110,27 @@ class TransactionResponseDTO(BaseModel):
             "deviations, computed from their own past transactions only)."
         ),
     )
+
+
+class TransactionHistoryItemDTO(BaseModel):
+    """
+    Outbound item for `GET /transactions/{user_id}` — the transaction
+    history list consumed by the Flutter "Transactions" screen.
+
+    Deliberately narrower than `TransactionResponseDTO`: historical rows
+    don't carry a per-transaction `OasisImpact`, `is_replay`, or
+    `is_unusual_spend` — those are only ever computed at ingestion time —
+    so this DTO reflects exactly what's persisted in the `transactions`
+    table, nothing more.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: UUID
+    description: str
+    amount: float
+    category: CategoryEnum
+    type_enum: TransactionType = Field(alias="type")
+    created_at: datetime
+
+

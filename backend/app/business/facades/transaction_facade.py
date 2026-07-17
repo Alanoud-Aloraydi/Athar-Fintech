@@ -1,4 +1,5 @@
 
+
 """
 Transaction Facade.
 
@@ -22,7 +23,11 @@ from app.core.exceptions import PersistenceError
 from app.persistence.models import TransactionWriteResult
 from app.persistence.repositories.goal_repo import GoalRepository
 from app.persistence.repositories.transaction_repo import TransactionRepository
-from app.presentation.schemas.transactions import TransactionCreateDTO, TransactionResponseDTO
+from app.presentation.schemas.transactions import (
+    TransactionCreateDTO,
+    TransactionHistoryItemDTO,
+    TransactionResponseDTO,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +143,38 @@ class TransactionFacade:
 
         return self._to_response_dto(write_result, oasis_impact, is_anomaly)
 
+    def get_history(self, user_id: str) -> list[TransactionHistoryItemDTO]:
+        """
+        Returns a user's full transaction history, most recent first, for
+        the Flutter "Transactions" screen. Pure read — no categorization,
+        no gamification evaluation, no goal rollup (all of that already
+        happened at ingestion time and is baked into the persisted rows).
+
+        Args:
+            user_id: UUID (as string) of the owning user.
+
+        Returns:
+            A list of `TransactionHistoryItemDTO`s (empty if the user has
+            no transactions yet).
+
+        Raises:
+            PersistenceError: If the underlying query fails. Allowed to
+                propagate to the Presentation layer, which maps it to an
+                HTTP response — the Facade does not know about HTTP.
+        """
+        records = self._transaction_repository.get_transactions_for_user(user_id)
+        return [
+            TransactionHistoryItemDTO(
+                id=record.id,
+                description=record.description,
+                amount=record.amount,
+                category=CategoryEnum(record.category),
+                type_enum=record.type,  # type: ignore[arg-type]
+                created_at=record.created_at,
+            )
+            for record in records
+        ]
+
     def _roll_into_active_goal(self, user_id: str, amount: float) -> None:
         """
         Best-effort update of the user's active goal's `saved_amount`.
@@ -229,3 +266,5 @@ class TransactionFacade:
             is_replay=write_result.is_replay,
             is_unusual_spend=is_anomaly,
         )
+
+

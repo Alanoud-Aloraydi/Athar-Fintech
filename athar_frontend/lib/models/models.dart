@@ -1,4 +1,5 @@
 
+
 import 'package:flutter/material.dart';
 
 /// Mirrors backend `app.business.categorization.models.CategoryEnum` exactly.
@@ -320,6 +321,35 @@ class TransactionResult {
       );
 }
 
+/// Mirrors `TransactionHistoryItemDTO` — item shape returned by
+/// GET /transactions/{user_id} (the full transaction history list).
+class TransactionHistoryItem {
+  final String id;
+  final String description;
+  final double amount;
+  final AppCategory category;
+  final String type; // EXPENSE | INCOME
+  final DateTime createdAt;
+
+  TransactionHistoryItem({
+    required this.id,
+    required this.description,
+    required this.amount,
+    required this.category,
+    required this.type,
+    required this.createdAt,
+  });
+
+  factory TransactionHistoryItem.fromJson(Map<String, dynamic> json) => TransactionHistoryItem(
+        id: json['id'] as String,
+        description: json['description'] as String,
+        amount: _asDouble(json['amount']),
+        category: AppCategoryX.fromApi(json['category'] as String),
+        type: json['type'] as String,
+        createdAt: DateTime.parse(json['created_at'] as String),
+      );
+}
+
 /// Mirrors `OasisSimulationResponseDTO` — response of POST /oasis/{user_id}/simulate.
 ///
 /// Nothing behind this response is persisted server-side; it's a pure
@@ -359,3 +389,5 @@ class OasisSimulationResult {
         newlyUnlockedPalms: json['newly_unlocked_palms'] as int,
       );
 }
+
+

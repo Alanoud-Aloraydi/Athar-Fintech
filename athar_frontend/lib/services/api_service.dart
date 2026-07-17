@@ -1,4 +1,5 @@
 
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -211,6 +212,20 @@ class ApiService {
     return TransactionResult.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  /// GET /transactions/{user_id} -> List<TransactionHistoryItemDTO>
+  ///
+  /// Full transaction ledger, most recent first. Backs the standalone
+  /// "Transactions" screen so every logged transaction is visible, not
+  /// just the dashboard's aggregated totals.
+  Future<List<TransactionHistoryItem>> getTransactionHistory(String userId) async {
+    final res = await http.get(Uri.parse('$baseUrl/transactions/$userId'), headers: _authHeaders);
+    _checkStatus(res);
+    final decoded = jsonDecode(res.body) as List;
+    return decoded
+        .map((e) => TransactionHistoryItem.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   // --- Helpers -----------------------------------------------------------------
 
   String _dateOnly(DateTime d) => d.toIso8601String().split('T').first;
@@ -231,3 +246,5 @@ class ApiService {
     throw ApiException(res.statusCode, message);
   }
 }
+
+

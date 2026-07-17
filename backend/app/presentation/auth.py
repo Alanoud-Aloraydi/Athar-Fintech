@@ -9,9 +9,22 @@ WHY THIS EXISTS: without it, every endpoint took `user_id` straight from
 the URL path or request body with no proof the caller actually owned that
 account. Anyone who could see or guess a UUID could read or write another
 user's balance, goals, and transactions. This closes that gap.
+
+TWO SUPABASE SIGNING SCHEMES: older Supabase projects sign access tokens
+with a single shared secret (HS256) -- that's `settings.SUPABASE_JWT_SECRET`.
+Newer projects default to asymmetric "JWT Signing Keys" (ES256/RS256)
+instead, published at the project's JWKS endpoint, and verifying those
+requires fetching the matching public key rather than a shared secret.
+A deployment only ever uses one scheme, but this module can't know which
+without asking the project itself, so `get_current_user_id` tries the
+cheap, no-network HS256 path first and only falls back to the JWKS lookup
+if that fails -- correct (and fast) for either kind of project without
+any extra configuration.
 """
 
 from __future__ import annotations
+
+from functools import lru_cache
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -35,6 +48,48 @@ _UNAUTHORIZED = HTTPException(
     headers={"WWW-Authenticate": "Bearer"},
 )
 
+# Newer Supabase projects publish their asymmetric verification keys here.
+_JWKS_URL_SUFFIX = "/auth/v1/.well-known/jwks.json"
+
+
+@lru_cache
+def _get_jwks_client() -> jwt.PyJWKClient:
+    """
+    Returns a cached `PyJWKClient` pointed at this Supabase project's JWKS
+    endpoint. Cached (not re-created per request) since `PyJWKClient`
+    itself caches the fetched keys internally and is safe to reuse -- one
+    instance for the process's lifetime avoids re-fetching the JWKS on
+    every single request.
+    """
+    return jwt.PyJWKClient(f"{settings.SUPABASE_URL}{_JWKS_URL_SUFFIX}")
+
+
+def _decode_with_shared_secret(token: str) -> dict | None:
+    """Legacy path: HS256, verified against the project's shared JWT secret. Returns None (never raises) on any failure so the caller can fall back."""
+    try:
+        return jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            audience="authenticated",
+        )
+    except jwt.PyJWTError:
+        return None
+
+
+def _decode_with_jwks(token: str) -> dict | None:
+    """Newer path: asymmetric signing keys, fetched (and cached) from the project's JWKS endpoint. Returns None (never raises) on any failure."""
+    try:
+        signing_key = _get_jwks_client().get_signing_key_from_jwt(token)
+        return jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["ES256", "RS256"],
+            audience="authenticated",
+        )
+    except (jwt.PyJWTError, jwt.PyJWKClientError):
+        return None
+
 
 def get_current_user_id(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
@@ -49,14 +104,10 @@ def get_current_user_id(
     if credentials is None or not credentials.credentials:
         raise _UNAUTHORIZED
 
-    try:
-        payload = jwt.decode(
-            credentials.credentials,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
-    except jwt.PyJWTError:
+    token = credentials.credentials
+    payload = _decode_with_shared_secret(token) or _decode_with_jwks(token)
+
+    if payload is None:
         raise _UNAUTHORIZED
 
     user_id = payload.get("sub")

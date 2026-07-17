@@ -1,8 +1,10 @@
+
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
 import 'farm_screen.dart';
 import 'dashboard_screen.dart';
+import 'transactions_screen.dart';
 import 'profile_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -30,6 +32,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final screens = [
       DashboardScreen(userId: userId),
       FarmScreen(userId: userId),
+      TransactionsScreen(userId: userId),
       ProfileScreen(userId: userId),
     ];
 
@@ -48,7 +51,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               children: [
                 _NavItem(icon: Icons.insights_rounded, label: 'لوحة البيانات', selected: _currentIndex == 0, onTap: () => setState(() => _currentIndex = 0)),
                 _NavItem(icon: Icons.park_rounded, label: 'المزرعة', selected: _currentIndex == 1, onTap: () => setState(() => _currentIndex = 1)),
-                _NavItem(icon: Icons.person_rounded, label: 'حسابي', selected: _currentIndex == 2, onTap: () => setState(() => _currentIndex = 2)),
+                _NavItem(icon: Icons.receipt_long_rounded, label: 'المعاملات', selected: _currentIndex == 2, onTap: () => setState(() => _currentIndex = 2)),
+                _NavItem(icon: Icons.person_rounded, label: 'حسابي', selected: _currentIndex == 3, onTap: () => setState(() => _currentIndex = 3)),
               ],
             ),
           ),
@@ -91,3 +95,5 @@ class _NavItem extends StatelessWidget {
     );
   }
 }
+
+

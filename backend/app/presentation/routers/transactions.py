@@ -1,3 +1,4 @@
+
 """
 Transaction Router (Presentation layer).
 
@@ -11,6 +12,7 @@ repository directly. All of that wiring lives in
 from __future__ import annotations
 
 import logging
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from starlette.concurrency import run_in_threadpool
@@ -19,7 +21,11 @@ from app.business.facades.transaction_facade import TransactionFacade
 from app.core.exceptions import PersistenceError, ProfileNotFoundError
 from app.presentation.auth import get_current_user_id, require_matching_user
 from app.presentation.dependencies import get_transaction_facade
-from app.presentation.schemas.transactions import TransactionCreateDTO, TransactionResponseDTO
+from app.presentation.schemas.transactions import (
+    TransactionCreateDTO,
+    TransactionHistoryItemDTO,
+    TransactionResponseDTO,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +35,7 @@ router = APIRouter()
 # failure occurs. The real exception (which may contain raw database error
 # text, table/column names, or other internal details) is logged
 # server-side via `logger.exception` instead of being sent to the client.
-_UPSTREAM_ERROR_DETAIL = "Failed to save your transaction, please try again later."
+_UPSTREAM_ERROR_DETAIL = "Failed to process your transaction request, please try again later."
 
 
 @router.post(
@@ -80,3 +86,31 @@ async def create_transaction(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while processing the transaction.",
         ) from exc
+
+
+@router.get(
+    "/{user_id}",
+    response_model=list[TransactionHistoryItemDTO],
+    summary="Get a user's full transaction history, most recent first",
+)
+async def get_transaction_history(
+    user_id: UUID,
+    facade: TransactionFacade = Depends(get_transaction_facade),
+    current_user_id: str = Depends(get_current_user_id),
+) -> list[TransactionHistoryItemDTO]:
+    """
+    Returns every transaction belonging to `user_id`, most recent first —
+    powers the Flutter "Transactions" screen so the full ledger (not just
+    the dashboard's aggregated totals) is visible in the app.
+    """
+    require_matching_user(str(user_id), current_user_id)
+    try:
+        return await run_in_threadpool(facade.get_history, str(user_id))
+    except PersistenceError as exc:
+        logger.exception("Failed to fetch transaction history for user_id=%s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=_UPSTREAM_ERROR_DETAIL,
+        ) from exc
+
+
