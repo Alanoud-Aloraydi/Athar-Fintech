@@ -1,3 +1,5 @@
+import 'dart:async' show StreamSubscription;
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/env.dart';
@@ -6,6 +8,11 @@ import 'theme/app_theme.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/quick_login_screen.dart';
+import 'screens/reset_password_screen.dart';
+
+/// Global navigator key so the auth listener in [_AtharAppState] can push the
+/// password-reset screen when the user arrives via a recovery link.
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 /// Whether Supabase initialised successfully.
 /// False when credentials are missing (e.g. running on Replit without secrets).
@@ -38,14 +45,31 @@ class AtharApp extends StatefulWidget {
 }
 
 class _AtharAppState extends State<AtharApp> {
+  StreamSubscription<AuthState>? _authSub;
+
   @override
   void initState() {
     super.initState();
     appSettings.addListener(_onSettingsChanged);
+
+    // When the user opens the app from a password-recovery email link,
+    // Supabase signs them in with a temporary session and fires
+    // `passwordRecovery`. Route them straight to the "set new password"
+    // screen so they can finish the reset.
+    if (_supabaseReady) {
+      _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((state) {
+        if (state.event == AuthChangeEvent.passwordRecovery) {
+          appNavigatorKey.currentState?.push(
+            MaterialPageRoute(builder: (_) => const ResetPasswordScreen()),
+          );
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    _authSub?.cancel();
     appSettings.removeListener(_onSettingsChanged);
     super.dispose();
   }
@@ -57,6 +81,7 @@ class _AtharAppState extends State<AtharApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: appNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'أثَر',
       theme: buildAppTheme(),

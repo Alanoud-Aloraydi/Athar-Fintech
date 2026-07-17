@@ -6,6 +6,7 @@ import '../widgets/common_widgets.dart';
 import '../services/auth_service.dart';
 import '../core/auth_error_mapper.dart';
 import 'signup_screen.dart';
+import 'forgot_password_screen.dart';
 import 'main_navigation_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -102,7 +103,13 @@ class _LoginScreenState extends State<LoginScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton(
-                  onPressed: () {},
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ForgotPasswordScreen(
+                          initialEmail: emailController.text.trim()),
+                    ),
+                  ),
                   child: const Text('نسيت كلمة المرور؟',
                       style: TextStyle(color: AppColors.textSecondary)),
                 ),

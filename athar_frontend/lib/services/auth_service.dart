@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Thin wrapper around the Supabase auth client (anon key, client-side only).
@@ -27,4 +28,25 @@ class AuthService {
   }
 
   Future<void> signOut() => _client.auth.signOut();
+
+  /// Sends a password-recovery email via Supabase.
+  ///
+  /// On web the email's link redirects back to this app's own origin, where
+  /// the Supabase client fires an [AuthChangeEvent.passwordRecovery] event
+  /// (handled in main.dart) that opens the "set new password" screen.
+  /// NOTE: the origin must also be whitelisted under
+  /// Authentication → URL Configuration → Redirect URLs in the Supabase
+  /// dashboard for the redirect to work.
+  Future<void> resetPassword(String email) {
+    return _client.auth.resetPasswordForEmail(
+      email,
+      redirectTo: kIsWeb ? Uri.base.origin : null,
+    );
+  }
+
+  /// Sets a new password for the currently-authenticated user (used after
+  /// following the recovery link from the reset email).
+  Future<UserResponse> updatePassword(String newPassword) {
+    return _client.auth.updateUser(UserAttributes(password: newPassword));
+  }
 }
