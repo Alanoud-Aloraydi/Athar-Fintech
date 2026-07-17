@@ -29,8 +29,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   void _refresh() {
+    final newFuture = _api.getTransactionHistory(widget.userId);
     setState(() {
-      _historyFuture = _api.getTransactionHistory(widget.userId);
+      _historyFuture = newFuture;
     });
   }
 

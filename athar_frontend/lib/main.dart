@@ -1,6 +1,7 @@
 import 'dart:async' show StreamSubscription;
 
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/env.dart';
 import 'core/app_settings.dart';
@@ -33,6 +34,11 @@ Future<void> main() async {
 
   // ignore: avoid_print
   print('Supabase initialized: $_supabaseReady');
+
+  // Initialize Arabic date/time formatting data so DateFormat('...', 'ar')
+  // does not throw a LocaleDataException at runtime.
+  await initializeDateFormatting('ar', null);
+  await initializeDateFormatting('ar_SA', null);
 
   runApp(const AtharApp());
 }

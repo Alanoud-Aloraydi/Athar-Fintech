@@ -36,9 +36,11 @@ class _FarmScreenState extends State<FarmScreen> {
   }
 
   void _refresh() {
+    final newOasisFuture = _api.getOasisState(widget.userId);
+    final newGoalFuture = _api.getActiveGoal(widget.userId);
     setState(() {
-      _oasisFuture = _api.getOasisState(widget.userId);
-      _goalFuture = _api.getActiveGoal(widget.userId);
+      _oasisFuture = newOasisFuture;
+      _goalFuture = newGoalFuture;
     });
   }
 

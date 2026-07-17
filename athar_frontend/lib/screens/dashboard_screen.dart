@@ -28,7 +28,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _future = _api.getDashboardSummary(widget.userId);
   }
 
-  void _refresh() => setState(() => _future = _api.getDashboardSummary(widget.userId));
+  void _refresh() {
+    final newFuture = _api.getDashboardSummary(widget.userId);
+    setState(() {
+      _future = newFuture;
+    });
+  }
 
   Future<void> _onAddTransaction() async {
     final result = await showAddTransactionSheet(context, userId: widget.userId);

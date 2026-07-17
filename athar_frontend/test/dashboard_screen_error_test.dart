@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:athar/models/models.dart';
 import 'package:athar/screens/dashboard_screen.dart';
@@ -45,6 +46,8 @@ Future<void> _pump(WidgetTester tester, FakeDashboardApi api) async {
   tester.view.physicalSize = const Size(800, 2000);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
+  // DashboardScreen uses Arabic DateFormat, so locale data must be loaded.
+  await initializeDateFormatting('ar', null);
   await tester.pumpWidget(_wrap(api));
   await tester.pump(); // let futures complete
   await tester.pump();
