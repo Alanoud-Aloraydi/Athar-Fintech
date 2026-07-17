@@ -82,14 +82,18 @@ class AuthGate extends StatelessWidget {
     final session = Supabase.instance.client.auth.currentSession;
     if (session == null) return const WelcomeScreen();
 
+    final userId = session.user.id;
+
     return FutureBuilder<bool>(
-      future: QuickLoginScreen.hasQuickLoginCode(),
+      // Scoped to this specific account -- see quick_login_screen.dart for
+      // why the PIN must never be checked/shown for a different userId.
+      future: QuickLoginScreen.hasQuickLoginCode(userId),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         return snapshot.data!
-            ? const QuickLoginScreen(mode: QuickLoginMode.login)
+            ? QuickLoginScreen(mode: QuickLoginMode.login, userId: userId)
             : const MainNavigationScreen();
       },
     );

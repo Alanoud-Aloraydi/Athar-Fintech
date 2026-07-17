@@ -3,6 +3,7 @@ import '../core/app_settings.dart';
 import '../core/strings.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
+import '../services/auth_service.dart';
 import 'edit_profile_screen.dart';
 import 'quick_login_screen.dart';
 
@@ -92,8 +93,12 @@ class SettingsScreen extends StatelessWidget {
                   icon: Icons.pin_outlined,
                   label: tr('create_quick_code_tile'),
                   onTap: () {
+                    final userId = AuthService().currentUserId;
+                    if (userId == null) return;
                     Navigator.push(
-                        context, MaterialPageRoute(builder: (_) => const QuickLoginScreen(mode: QuickLoginMode.setup)));
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => QuickLoginScreen(mode: QuickLoginMode.setup, userId: userId)));
                   },
                 ),
               ),

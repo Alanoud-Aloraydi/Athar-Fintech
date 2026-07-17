@@ -28,8 +28,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
 
     final screens = [
-      FarmScreen(userId: userId),
       DashboardScreen(userId: userId),
+      FarmScreen(userId: userId),
       ProfileScreen(userId: userId),
     ];
 
@@ -46,8 +46,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _NavItem(icon: Icons.park_rounded, label: 'المزرعة', selected: _currentIndex == 0, onTap: () => setState(() => _currentIndex = 0)),
-                _NavItem(icon: Icons.insights_rounded, label: 'لوحة البيانات', selected: _currentIndex == 1, onTap: () => setState(() => _currentIndex = 1)),
+                _NavItem(icon: Icons.insights_rounded, label: 'لوحة البيانات', selected: _currentIndex == 0, onTap: () => setState(() => _currentIndex = 0)),
+                _NavItem(icon: Icons.park_rounded, label: 'المزرعة', selected: _currentIndex == 1, onTap: () => setState(() => _currentIndex = 1)),
                 _NavItem(icon: Icons.person_rounded, label: 'حسابي', selected: _currentIndex == 2, onTap: () => setState(() => _currentIndex = 2)),
               ],
             ),

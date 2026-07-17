@@ -2,6 +2,7 @@
 
 --- File: C:\Athar-Fintech-main\athar_frontend\pubspec.yaml ---
 
+
 name: athar
 description: "Athar - FinTech app blending offline transaction categorization with gamified financial goals."
 publish_to: 'none'
@@ -19,6 +20,7 @@ dependencies:
   supabase_flutter: ^2.8.0
   intl: ^0.19.0
   shared_preferences: ^2.3.3
+  webview_flutter: ^4.10.0
 
 dev_dependencies:
   flutter_test:
@@ -29,6 +31,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+    - assets/oasis/
 
 
 --- File: C:\Athar-Fintech-main\athar_frontend\.dart_tool\dartpad\web_plugin_registrant.dart ---
@@ -674,6 +677,7 @@ String tr(String key) => Strings.t(key);
 
 --- File: C:\Athar-Fintech-main\athar_frontend\lib\models\models.dart ---
 
+
 import 'package:flutter/material.dart';
 
 /// Mirrors backend `app.business.categorization.models.CategoryEnum` exactly.
@@ -915,6 +919,7 @@ class OasisState {
   final int currentStreakDays;
   final int longestStreakDays;
   final OasisEnvironment environment;
+  final int visiblePalmCount;
 
   OasisState({
     required this.userId,
@@ -923,6 +928,7 @@ class OasisState {
     required this.currentStreakDays,
     required this.longestStreakDays,
     required this.environment,
+    required this.visiblePalmCount,
   });
 
   factory OasisState.fromJson(Map<String, dynamic> json) => OasisState(
@@ -932,10 +938,13 @@ class OasisState {
         currentStreakDays: json['current_streak_days'] as int,
         longestStreakDays: json['longest_streak_days'] as int,
         environment: OasisEnvironment.fromJson(json['environment'] as Map<String, dynamic>),
+        // Defensive default for older cached responses during rollout â€”
+        // the backend always sends this field now.
+        visiblePalmCount: (json['visible_palm_count'] as int?) ?? 1,
       );
 }
 
-/// Mirrors `OasisImpact` (embedded in TransactionResponseDTO).
+/// Mirrors `OasisImpact` (embedded in TransactionResponseDTO and OasisSimulationResponseDTO).
 class OasisImpact {
   final double growthDelta;
   final double healthDelta;
@@ -987,6 +996,46 @@ class TransactionResult {
         oasisImpact: OasisImpact.fromJson(json['oasis_impact'] as Map<String, dynamic>),
         isReplay: (json['is_replay'] as bool?) ?? false,
         isUnusualSpend: (json['is_unusual_spend'] as bool?) ?? false,
+      );
+}
+
+/// Mirrors `OasisSimulationResponseDTO` â€” response of POST /oasis/{user_id}/simulate.
+///
+/// Nothing behind this response is persisted server-side; it's a pure
+/// preview used by the Farm screen's "try a transaction" panel.
+class OasisSimulationResult {
+  final AppCategory predictedCategory;
+  final OasisImpact oasisImpact;
+  final double currentGrowthLevel;
+  final double currentHealthScore;
+  final int currentVisiblePalmCount;
+  final double projectedGrowthLevel;
+  final double projectedHealthScore;
+  final int projectedVisiblePalmCount;
+  final int newlyUnlockedPalms;
+
+  OasisSimulationResult({
+    required this.predictedCategory,
+    required this.oasisImpact,
+    required this.currentGrowthLevel,
+    required this.currentHealthScore,
+    required this.currentVisiblePalmCount,
+    required this.projectedGrowthLevel,
+    required this.projectedHealthScore,
+    required this.projectedVisiblePalmCount,
+    required this.newlyUnlockedPalms,
+  });
+
+  factory OasisSimulationResult.fromJson(Map<String, dynamic> json) => OasisSimulationResult(
+        predictedCategory: AppCategoryX.fromApi(json['predicted_category'] as String),
+        oasisImpact: OasisImpact.fromJson(json['oasis_impact'] as Map<String, dynamic>),
+        currentGrowthLevel: _asDouble(json['current_growth_level']),
+        currentHealthScore: _asDouble(json['current_health_score']),
+        currentVisiblePalmCount: json['current_visible_palm_count'] as int,
+        projectedGrowthLevel: _asDouble(json['projected_growth_level']),
+        projectedHealthScore: _asDouble(json['projected_health_score']),
+        projectedVisiblePalmCount: json['projected_visible_palm_count'] as int,
+        newlyUnlockedPalms: json['newly_unlocked_palms'] as int,
       );
 }
 
@@ -1455,11 +1504,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
 --- File: C:\Athar-Fintech-main\athar_frontend\lib\screens\farm_screen.dart ---
 
+
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
 import '../widgets/common_widgets.dart';
+import '../widgets/palm_oasis_viewer.dart';
+import 'goal_dialog.dart';
 
 class FarmScreen extends StatefulWidget {
   final String userId;
@@ -1471,15 +1523,36 @@ class FarmScreen extends StatefulWidget {
 
 class _FarmScreenState extends State<FarmScreen> {
   final _api = ApiService();
-  late Future<OasisState> _future;
+  late Future<OasisState> _oasisFuture;
+  late Future<Goal?> _goalFuture;
+
+  PalmOasisController? _oasisController;
+  OasisState? _lastOasis;
 
   @override
   void initState() {
     super.initState();
-    _future = _api.getOasisState(widget.userId);
+    _oasisFuture = _api.getOasisState(widget.userId);
+    _goalFuture = _api.getActiveGoal(widget.userId);
   }
 
-  void _refresh() => setState(() => _future = _api.getOasisState(widget.userId));
+  void _refresh() {
+    setState(() {
+      _oasisFuture = _api.getOasisState(widget.userId);
+      _goalFuture = _api.getActiveGoal(widget.userId);
+    });
+  }
+
+  /// Re-syncs the live 3D scene with the real, persisted palm count.
+  /// Called after the initial load and any time we back out of a
+  /// simulator preview.
+  void _applyRealPalmCount(OasisState oasis) {
+    _lastOasis = oasis;
+    final controller = _oasisController;
+    if (controller != null && controller.isSceneReady) {
+      controller.setVisiblePalms(oasis.visiblePalmCount);
+    }
+  }
 
   String _weatherLabel(String w) {
     switch (w) {
@@ -1526,78 +1599,182 @@ class _FarmScreenState extends State<FarmScreen> {
     }
   }
 
+  Future<void> _onCreateGoal() async {
+    final goal = await showCreateGoalDialog(context, userId: widget.userId);
+    if (goal != null) _refresh();
+  }
+
+  Future<void> _onArchiveGoal(Goal goal) async {
+    try {
+      await _api.transitionGoalStatus(userId: widget.userId, goalId: goal.id, newStatus: 'ARCHIVED');
+      _refresh();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.arabicMessage)));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('ظ…ط²ط±ط¹ط© ط£ط«ظژط±'), centerTitle: true),
       body: RefreshIndicator(
         onRefresh: () async => _refresh(),
-        child: FutureBuilder<OasisState>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return ListView(children: [
-                const SizedBox(height: 80),
-                ErrorRetryView(message: friendlyLoadErrorMessage(snapshot.error), onRetry: _refresh),
-              ]);
-            }
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            // --- 3D Palm Oasis scene ---
+            PalmOasisViewer(
+              onControllerReady: (controller) {
+                _oasisController = controller;
+                final oasis = _lastOasis;
+                if (oasis != null) {
+                  // Scene may finish loading after the data already
+                  // arrived (or vice versa) -- either order works since
+                  // we re-apply here once the controller exists.
+                  controller.setVisiblePalms(oasis.visiblePalmCount);
+                }
+              },
+            ),
+            const SizedBox(height: 16),
 
-            final oasis = snapshot.data!;
-            final env = oasis.environment;
+            FutureBuilder<OasisState>(
+              future: _oasisFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return ErrorRetryView(message: friendlyLoadErrorMessage(snapshot.error), onRetry: _refresh);
+                }
 
-            return ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                SectionCard(
-                  child: Column(
-                    children: [
-                      Icon(_weatherIcon(env.weatherCondition), size: 56, color: AppColors.primaryLight),
-                      const SizedBox(height: 12),
-                      Text(env.moodMessage, textAlign: TextAlign.center, style: AppTextStyles.h2),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 8,
+                final oasis = snapshot.data!;
+                // Keep the live scene synced every time fresh data lands
+                // (e.g. after a pull-to-refresh or committing a real
+                // transaction from the simulator below).
+                WidgetsBinding.instance.addPostFrameCallback((_) => _applyRealPalmCount(oasis));
+                final env = oasis.environment;
+
+                return Column(
+                  children: [
+                    SectionCard(
+                      child: Column(
                         children: [
-                          Chip(label: Text('ط§ظ„ط·ظ‚ط³: ${_weatherLabel(env.weatherCondition)}')),
-                          Chip(label: Text('ط§ظ„ظ‡ط§ظ„ط©: ${_auraLabel(env.visualAura)}')),
+                          Icon(_weatherIcon(env.weatherCondition), size: 56, color: AppColors.primaryLight),
+                          const SizedBox(height: 12),
+                          Text(env.moodMessage, textAlign: TextAlign.center, style: AppTextStyles.h2),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 8,
+                            children: [
+                              Chip(label: Text('ط§ظ„ط·ظ‚ط³: ${_weatherLabel(env.weatherCondition)}')),
+                              Chip(label: Text('ط§ظ„ظ‡ط§ظ„ط©: ${_auraLabel(env.visualAura)}')),
+                              Chip(label: Text('ط§ظ„ظ†ط®ظٹظ„: ${oasis.visiblePalmCount}/12')),
+                            ],
+                          ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: _StatTile(label: 'ظ…ط³طھظˆظ‰ ط§ظ„ظ†ظ…ظˆ', value: oasis.growthLevel.toStringAsFixed(1), icon: Icons.eco_rounded, color: AppColors.success)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _StatTile(label: 'ط§ظ„طµط­ط© ط§ظ„ط¹ط§ظ…ط©', value: '${oasis.healthScore.toStringAsFixed(0)}ظھ', icon: Icons.favorite_rounded, color: AppColors.danger)),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(child: _StatTile(label: 'ظ…ط³طھظˆظ‰ ط§ظ„ظ†ظ…ظˆ', value: oasis.growthLevel.toStringAsFixed(1), icon: Icons.eco_rounded, color: AppColors.success)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _StatTile(label: 'ط§ظ„طµط­ط© ط§ظ„ط¹ط§ظ…ط©', value: '${oasis.healthScore.toStringAsFixed(0)}ظھ', icon: Icons.favorite_rounded, color: AppColors.danger)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(child: _StatTile(label: 'ط§ظ„ط³ظ„ط³ظ„ط© ط§ظ„ط­ط§ظ„ظٹط©', value: '${oasis.currentStreakDays} ظٹظˆظ…', icon: Icons.local_fire_department_rounded, color: AppColors.gold)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _StatTile(label: 'ط£ط·ظˆظ„ ط³ظ„ط³ظ„ط©', value: '${oasis.longestStreakDays} ظٹظˆظ…', icon: Icons.emoji_events_rounded, color: AppColors.primaryDark)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SectionCard(
+                      child: Row(
+                        children: [
+                          const Icon(Icons.bolt_rounded, color: AppColors.gold),
+                          const SizedBox(width: 10),
+                          Expanded(child: Text('ظ…ظڈط¶ط§ط¹ظگظپ ط§ظ„ط³ظ„ط³ظ„ط© ط§ظ„ط­ط§ظ„ظٹ: أ—${env.streakMultiplier.toStringAsFixed(2)}', style: AppTextStyles.label)),
+                        ],
+                      ),
+                    ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(child: _StatTile(label: 'ط§ظ„ط³ظ„ط³ظ„ط© ط§ظ„ط­ط§ظ„ظٹط©', value: '${oasis.currentStreakDays} ظٹظˆظ…', icon: Icons.local_fire_department_rounded, color: AppColors.gold)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _StatTile(label: 'ط£ط·ظˆظ„ ط³ظ„ط³ظ„ط©', value: '${oasis.longestStreakDays} ظٹظˆظ…', icon: Icons.emoji_events_rounded, color: AppColors.primaryDark)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SectionCard(
-                  child: Row(
+                );
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            // --- Goal management ---
+            FutureBuilder<Goal?>(
+              future: _goalFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SectionCard(
+                    child: Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator())),
+                  );
+                }
+                final goal = snapshot.hasError ? null : snapshot.data;
+                return SectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.bolt_rounded, color: AppColors.gold),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text('ظ…ظڈط¶ط§ط¹ظگظپ ط§ظ„ط³ظ„ط³ظ„ط© ط§ظ„ط­ط§ظ„ظٹ: أ—${env.streakMultiplier.toStringAsFixed(2)}', style: AppTextStyles.label)),
+                      Row(children: const [
+                        Icon(Icons.flag_rounded, color: AppColors.gold),
+                        SizedBox(width: 8),
+                        Text('ظ‡ط¯ظپظƒ ط§ظ„ظ…ط§ظ„ظٹ', style: AppTextStyles.label),
+                      ]),
+                      const SizedBox(height: 14),
+                      if (goal != null) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: LinearProgressIndicator(
+                            value: (goal.targetAmount <= 0 ? 0.0 : goal.savedAmount / goal.targetAmount).clamp(0.0, 1.0),
+                            minHeight: 12,
+                            backgroundColor: AppColors.border,
+                            valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('${goal.title} â€” ${goal.savedAmount.toStringAsFixed(2)} ظ…ظ† ${goal.targetAmount.toStringAsFixed(2)}', style: AppTextStyles.body),
+                        const SizedBox(height: 12),
+                        SecondaryButton(text: 'ط£ط±ط´ظپط© ط§ظ„ظ‡ط¯ظپ', onPressed: () => _onArchiveGoal(goal)),
+                      ] else ...[
+                        const Text('ظ„ط§ ظٹظˆط¬ط¯ ظ‡ط¯ظپ ظ†ط´ط· ط­ط§ظ„ظٹط§ظ‹ â€” ط£ط¶ظپ ظ‡ط¯ظپط§ظ‹ ظ„ظٹط¹ظƒط³ ظ†ظ…ظˆ ظˆط§ط­طھظƒ طھظ‚ط¯ظ‘ظ…ظƒ ظ†ط­ظˆظ‡', style: AppTextStyles.body),
+                        const SizedBox(height: 12),
+                        PrimaryButton(text: 'ط¥ط¶ط§ظپط© ظ‡ط¯ظپ ط¬ط¯ظٹط¯', onPressed: _onCreateGoal, icon: Icons.add_rounded),
+                      ],
                     ],
                   ),
-                ),
-              ],
-            );
-          },
+                );
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            // --- Transaction simulator ("what if" preview, nothing persisted) ---
+            _TransactionSimulatorCard(
+              userId: widget.userId,
+              api: _api,
+              baselineOasis: _lastOasis,
+              onPreview: (result) => _oasisController?.setVisiblePalms(result.projectedVisiblePalmCount),
+              onResetPreview: () {
+                final oasis = _lastOasis;
+                if (oasis != null) _applyRealPalmCount(oasis);
+              },
+              onCommitted: _refresh,
+            ),
+
+            const SizedBox(height: 24),
+          ],
         ),
       ),
     );
@@ -1628,6 +1805,232 @@ class _StatTile extends StatelessWidget {
           Text(label, style: AppTextStyles.body),
           const SizedBox(height: 4),
           Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Try a transaction" panel: lets the user type a hypothetical
+/// description/amount/type, calls `POST /oasis/{user_id}/simulate` (no
+/// persistence), and shows the predicted category + Oasis impact. While a
+/// result is showing, the 3D scene above previews the projected palm
+/// count via [onPreview]; [onResetPreview] snaps it back to the real
+/// count. The user can then either discard the preview or commit it as a
+/// real transaction via [onCommitted].
+class _TransactionSimulatorCard extends StatefulWidget {
+  final String userId;
+  final ApiService api;
+  final OasisState? baselineOasis;
+  final ValueChanged<OasisSimulationResult> onPreview;
+  final VoidCallback onResetPreview;
+  final VoidCallback onCommitted;
+
+  const _TransactionSimulatorCard({
+    required this.userId,
+    required this.api,
+    required this.baselineOasis,
+    required this.onPreview,
+    required this.onResetPreview,
+    required this.onCommitted,
+  });
+
+  @override
+  State<_TransactionSimulatorCard> createState() => _TransactionSimulatorCardState();
+}
+
+class _TransactionSimulatorCardState extends State<_TransactionSimulatorCard> {
+  final _descriptionController = TextEditingController();
+  final _amountController = TextEditingController();
+  String _type = 'EXPENSE';
+  bool _isSimulating = false;
+  bool _isCommitting = false;
+  OasisSimulationResult? _result;
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _onSimulate() async {
+    final amount = double.tryParse(_amountController.text.trim());
+    if (_descriptionController.text.trim().isEmpty || amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ظٹط±ط¬ظ‰ ط¥ط¯ط®ط§ظ„ ظˆطµظپ ظˆظ…ط¨ظ„ط؛ طµط­ظٹط­ظٹظ†')));
+      return;
+    }
+    setState(() {
+      _isSimulating = true;
+      _result = null;
+    });
+    try {
+      final result = await widget.api.simulateOasisImpact(
+        userId: widget.userId,
+        amount: amount,
+        description: _descriptionController.text.trim(),
+        type: _type,
+      );
+      if (!mounted) return;
+      setState(() {
+        _result = result;
+        _isSimulating = false;
+      });
+      widget.onPreview(result);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _isSimulating = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.arabicMessage)));
+    }
+  }
+
+  void _discardPreview() {
+    setState(() => _result = null);
+    widget.onResetPreview();
+  }
+
+  Future<void> _commitTransaction() async {
+    final amount = double.tryParse(_amountController.text.trim());
+    if (amount == null) return;
+    setState(() => _isCommitting = true);
+    try {
+      await widget.api.createTransaction(
+        userId: widget.userId,
+        amount: amount,
+        description: _descriptionController.text.trim(),
+        type: _type,
+      );
+      if (!mounted) return;
+      setState(() {
+        _isCommitting = false;
+        _result = null;
+        _descriptionController.clear();
+        _amountController.clear();
+      });
+      widget.onCommitted();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _isCommitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.arabicMessage)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final result = _result;
+    return SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: const [
+            Icon(Icons.science_rounded, color: AppColors.primaryDark),
+            SizedBox(width: 8),
+            Text('ط¬ط±ظ‘ط¨ ظ…ط¹ط§ظ…ظ„ط© ط¹ظ„ظ‰ ظˆط§ط­طھظƒ', style: AppTextStyles.label),
+          ]),
+          const SizedBox(height: 4),
+          const Text('ظ…ط¹ط§ظٹظ†ط© ظپظ‚ط· â€” ظ„ظ† طھظڈط³ط¬ظژظ‘ظ„ ط£ظٹ ط¹ظ…ظ„ظٹط© ط¥ظ„ط§ ط¥ط°ط§ ط§ط®طھط±طھ ط°ظ„ظƒ ط¨ط¹ط¯ ط§ظ„ظ…ط¹ط§ظٹظ†ط©', style: AppTextStyles.small),
+          const SizedBox(height: 14),
+          AppTextField(controller: _descriptionController, label: 'ظˆطµظپ ط§ظ„ط¹ظ…ظ„ظٹط© (ظ…ط«ط§ظ„: Starbucks)', icon: Icons.edit_note_rounded),
+          const SizedBox(height: 12),
+          AppTextField(controller: _amountController, label: 'ط§ظ„ظ…ط¨ظ„ط؛', icon: Icons.payments_rounded, keyboardType: TextInputType.number),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ChoiceChip(
+                  label: const Text('ظ…طµط±ظˆظپ'),
+                  selected: _type == 'EXPENSE',
+                  onSelected: (_) => setState(() => _type = 'EXPENSE'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ChoiceChip(
+                  label: const Text('ط¯ط®ظ„'),
+                  selected: _type == 'INCOME',
+                  onSelected: (_) => setState(() => _type = 'INCOME'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          PrimaryButton(
+            text: 'ط´ظˆظپ طھط£ط«ظٹط±ظ‡ط§ ط¹ظ„ظ‰ ط§ظ„ظˆط§ط­ط©',
+            isLoading: _isSimulating,
+            onPressed: _onSimulate,
+            icon: Icons.play_arrow_rounded,
+          ),
+          if (result != null) ...[
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              Chip(label: Text('ط§ظ„طھطµظ†ظٹظپ ط§ظ„ظ…طھظˆظ‚ط¹: ${result.predictedCategory.label}')),
+              if (result.newlyUnlockedPalms > 0)
+                Chip(
+                  label: Text('ًںŒ´ +${result.newlyUnlockedPalms} ظ†ط®ظ„ط© ط¬ط¯ظٹط¯ط©!'),
+                  backgroundColor: AppColors.success.withOpacity(0.15),
+                ),
+            ]),
+            const SizedBox(height: 10),
+            Text(result.oasisImpact.triggerReason, style: AppTextStyles.body),
+            const SizedBox(height: 10),
+            _ImpactRow(
+              label: 'ط§ظ„ظ†ظ…ظˆ',
+              before: result.currentGrowthLevel,
+              after: result.projectedGrowthLevel,
+            ),
+            _ImpactRow(
+              label: 'ط§ظ„طµط­ط©',
+              before: result.currentHealthScore,
+              after: result.projectedHealthScore,
+            ),
+            Text(
+              'ط§ظ„ظ†ط®ظٹظ„ ط§ظ„ط¸ط§ظ‡ط±: ${result.currentVisiblePalmCount} â†گ ${result.projectedVisiblePalmCount} ظ…ظ† 12',
+              style: AppTextStyles.small,
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(child: SecondaryButton(text: 'طھط¬ط§ظ‡ظ„ ط§ظ„ظ…ط¹ط§ظٹظ†ط©', onPressed: _discardPreview)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: PrimaryButton(
+                    text: 'ط³ط¬ظ‘ظ„ظ‡ط§ ظپط¹ظ„ظٹط§ظ‹',
+                    isLoading: _isCommitting,
+                    onPressed: _commitTransaction,
+                    icon: Icons.check_rounded,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ImpactRow extends StatelessWidget {
+  final String label;
+  final double before;
+  final double after;
+
+  const _ImpactRow({required this.label, required this.before, required this.after});
+
+  @override
+  Widget build(BuildContext context) {
+    final delta = after - before;
+    final deltaColor = delta > 0 ? AppColors.success : (delta < 0 ? AppColors.danger : AppColors.textSecondary);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Expanded(child: Text('$label: ${before.toStringAsFixed(1)} â†گ ${after.toStringAsFixed(1)}', style: AppTextStyles.body)),
+          Text(
+            delta == 0 ? 'ط¨ط¯ظˆظ† طھط؛ظٹظٹط±' : (delta > 0 ? '+${delta.toStringAsFixed(1)}' : delta.toStringAsFixed(1)),
+            style: TextStyle(color: deltaColor, fontWeight: FontWeight.bold),
+          ),
         ],
       ),
     );
@@ -2651,6 +3054,7 @@ class WelcomeScreen extends StatelessWidget {
 
 --- File: C:\Athar-Fintech-main\athar_frontend\lib\services\api_service.dart ---
 
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -2759,6 +3163,32 @@ class ApiService {
     return OasisState.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  /// POST /oasis/{user_id}/simulate -> OasisSimulationResponseDTO
+  ///
+  /// Pure preview -- nothing here is persisted server-side. Used by the
+  /// Farm screen's "try a transaction" panel to show what a hypothetical
+  /// transaction would do to the Oasis (predicted category, growth/health
+  /// deltas, before/after palm count) before the user decides whether to
+  /// actually log it via [createTransaction].
+  Future<OasisSimulationResult> simulateOasisImpact({
+    required String userId,
+    required double amount,
+    required String description,
+    required String type, // "EXPENSE" | "INCOME"
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/oasis/$userId/simulate'),
+      headers: _authHeaders,
+      body: jsonEncode({
+        'amount': amount,
+        'description': description,
+        'type': type,
+      }),
+    );
+    _checkStatus(res);
+    return OasisSimulationResult.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   // --- Goals -----------------------------------------------------------------
 
   /// GET /goals/{user_id}/active -> GoalResponseDTO | null
@@ -2851,7 +3281,7 @@ class ApiService {
         message = decoded['detail'].toString();
       }
     } catch (_) {
-      // Non-JSON error body (e.g. a raw 502 from the platform) â€” fall back
+      // Non-JSON error body (e.g. a raw 502 from the platform) -- fall back
       // to the generic message above rather than surfacing raw HTML/text.
     }
     throw ApiException(res.statusCode, message);
@@ -3453,6 +3883,124 @@ class _FadeSlideInState extends State<FadeSlideIn> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     return FadeTransition(opacity: _fade, child: SlideTransition(position: _slide, child: widget.child));
+  }
+}
+
+
+--- File: C:\Athar-Fintech-main\athar_frontend\lib\widgets\palm_oasis_viewer.dart ---
+
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import '../theme/app_theme.dart';
+
+/// Controller handed back via [PalmOasisViewer.onControllerReady], letting
+/// the parent screen (FarmScreen) drive the 3D scene: set the real palm
+/// count once Oasis data loads, or temporarily preview a hypothetical
+/// count from the transaction simulator.
+class PalmOasisController {
+  final WebViewController _webViewController;
+  bool _sceneReady = false;
+
+  PalmOasisController._(this._webViewController);
+
+  bool get isSceneReady => _sceneReady;
+
+  /// Sets Palm_01..Palm_0[count] visible and hides the rest. Safe to call
+  /// before the scene finishes loading -- queued calls before `ready`
+  /// are simply dropped since `oasis_viewer.html` re-applies the real
+  /// count itself once `setVisiblePalmCount` becomes available; callers
+  /// should re-invoke this once [isSceneReady] flips true if needed.
+  Future<void> setVisiblePalms(int count) async {
+    final clamped = count.clamp(1, 12);
+    await _webViewController.runJavaScript('window.setVisiblePalmCount($clamped);');
+  }
+}
+
+/// Embeds the Spline "Palm Oasis" scene (see assets/oasis/oasis_viewer.html)
+/// in a WebView. All 12 palms exist in the exported scene, named
+/// "Palm_01".."Palm_12"; the host page hides all but the current count via
+/// `getObjectByName(...).visible = ...` (never findObjectByName /
+/// setVariable, per the scene's export notes).
+class PalmOasisViewer extends StatefulWidget {
+  final double height;
+  final ValueChanged<PalmOasisController> onControllerReady;
+
+  const PalmOasisViewer({
+    super.key,
+    required this.onControllerReady,
+    this.height = 280,
+  });
+
+  @override
+  State<PalmOasisViewer> createState() => _PalmOasisViewerState();
+}
+
+class _PalmOasisViewerState extends State<PalmOasisViewer> {
+  late final WebViewController _controller;
+  late final PalmOasisController _oasisController;
+  bool _loadFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.transparent)
+      ..addJavaScriptChannel(
+        'OasisBridge',
+        onMessageReceived: _onBridgeMessage,
+      )
+      ..loadFlutterAsset('assets/oasis/oasis_viewer.html');
+
+    _oasisController = PalmOasisController._(_controller);
+    widget.onControllerReady(_oasisController);
+  }
+
+  void _onBridgeMessage(JavaScriptMessage message) {
+    try {
+      final data = jsonDecode(message.message) as Map<String, dynamic>;
+      if (data['event'] == 'ready') {
+        setState(() => _oasisController._sceneReady = true);
+      } else if (data['event'] == 'error') {
+        setState(() => _loadFailed = true);
+      }
+    } catch (_) {
+      // Malformed bridge payload -- non-fatal, the scene keeps running.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: SizedBox(
+        height: widget.height,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(color: AppColors.card),
+            WebViewWidget(controller: _controller),
+            if (!_oasisController.isSceneReady && !_loadFailed)
+              const Center(child: CircularProgressIndicator()),
+            if (_loadFailed)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.park_rounded, size: 40, color: AppColors.primaryLight),
+                      const SizedBox(height: 8),
+                      Text('طھط¹ط°ظ‘ط± طھط­ظ…ظٹظ„ ظ…ط´ظ‡ط¯ ط§ظ„ظˆط§ط­ط©', style: AppTextStyles.body),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

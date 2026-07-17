@@ -67,12 +67,11 @@ class ProfileScreen extends StatelessWidget {
             SecondaryButton(
               text: 'تسجيل الخروج',
               onPressed: () async {
-                // Clear the device-local quick-login PIN *before* signing
-                // out of Supabase. The PIN isn't scoped to a specific
-                // account -- leaving it behind would let it silently grant
-                // access to whichever account signs in next on this same
-                // device, bypassing that account's own login entirely.
-                await QuickLoginScreen.clearQuickLoginCode();
+                // Clear this account's device-local quick-login PIN before
+                // signing out of Supabase (belt-and-suspenders -- the PIN
+                // is now scoped per userId, so it can no longer gate a
+                // different account's login even if this step is skipped).
+                await QuickLoginScreen.clearQuickLoginCode(userId);
                 await AuthService().signOut();
                 if (context.mounted) {
                   Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const WelcomeScreen()), (route) => false);
