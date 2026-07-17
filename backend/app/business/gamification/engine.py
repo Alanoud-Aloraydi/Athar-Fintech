@@ -121,27 +121,27 @@ class GamificationEngine:
             return OasisImpact(
                 growth_delta=_SAVINGS_GROWTH_DELTA,
                 health_delta=0.0,
-                trigger_reason="Setting money aside nurtures the Oasis — steady growth.",
+                trigger_reason="الادخار يغذّي واحتك — نمو ثابت ومستمر 🌱",
             )
 
         if category == _ENTERTAINMENT and txn_type == _EXPENSE:
             return OasisImpact(
                 growth_delta=0.0,
                 health_delta=_ENTERTAINMENT_HEALTH_DELTA,
-                trigger_reason="Discretionary entertainment spending strains the Oasis.",
+                trigger_reason="الإنفاق الترفيهي يضغط على واحتك — تعامل بحذر 🌪️",
             )
 
         if category in _ESSENTIAL_CATEGORIES:
             return OasisImpact(
                 growth_delta=0.0,
                 health_delta=0.0,
-                trigger_reason="Essential spending keeps the Oasis stable — no impact.",
+                trigger_reason="الإنفاق على الضروريات يُبقي واحتك مستقرة ⚖️",
             )
 
         return OasisImpact(
             growth_delta=0.0,
             health_delta=0.0,
-            trigger_reason="No measurable impact on the Oasis for this transaction.",
+            trigger_reason="لا تأثير ملحوظ على الواحة لهذه المعاملة",
         )
 
     def derive_environment(
@@ -237,14 +237,14 @@ class GamificationEngine:
     @staticmethod
     def _mood_message_for(weather: str, aura: str, streak_days: int) -> str:
         if weather == "stormy":
-            return "Your Oasis is weathering a storm — ease up on discretionary spending."
+            return "واحتك تمرّ بعاصفة — قلّل من الإنفاق الترفيهي لتعود الشمس 🌪️"
         if streak_days >= 7:
-            return f"{streak_days}-day saving streak — your Oasis is thriving."
+            return f"سلسلة ادخار {streak_days} يوماً — واحتك في أوجها! 🌟"
         if aura in ("flourishing", "luminous"):
-            return "Your Oasis is flourishing from consistent saving habits."
+            return "واحتك تزهر من عادات الادخار المنتظمة — استمر! 🌴"
         if weather == "radiant":
-            return "Clear skies — your spending habits are in great shape."
-        return "Your Oasis is steady. Keep building your saving habit for a bigger glow-up."
+            return "سماء صافية — عاداتك المالية في حالة ممتازة ☀️"
+        return "واحتك مستقرة. واصل بناء عادة الادخار لمزيد من النخيل 🌱"
 
 
 @lru_cache

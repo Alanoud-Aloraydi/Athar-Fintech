@@ -65,12 +65,14 @@ def get_transaction_facade(
     gamification_engine: GamificationEngine = Depends(get_gamification_engine),
     transaction_repository: TransactionRepository = Depends(get_transaction_repository),
     goal_repository: GoalRepository = Depends(get_goal_repository),
+    profile_repository: ProfileRepository = Depends(get_profile_repository),
 ) -> TransactionFacade:
     return TransactionFacade(
         categorization_engine=categorization_engine,
         gamification_engine=gamification_engine,
         transaction_repository=transaction_repository,
         goal_repository=goal_repository,
+        profile_repository=profile_repository,
     )
 
 

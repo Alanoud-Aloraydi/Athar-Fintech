@@ -112,11 +112,11 @@ class InsightsEngine:
         has_projection: bool,
     ) -> str:
         if oasis_health_score <= 40:
-            return "Discretionary spending has been straining your budget this period — consider dialing it back."
+            return "الإنفاق الترفيهي يضغط على ميزانيتك — حاول تقليصه هذه الفترة 🌪️"
         if net_flow < 0:
-            return "You're spending more than you're bringing in this period — worth a closer look at recent expenses."
+            return "إنفاقك يتجاوز دخلك هذه الفترة — راجع المصروفات الأخيرة عن كثب 📉"
         if current_streak_days >= 7:
-            return f"Strong {current_streak_days}-day saving streak — you're on a great trajectory."
+            return f"سلسلة ادخار قوية {current_streak_days} يوماً — أنت على المسار الصحيح تماماً 🌟"
         if has_projection:
-            return "Your current pace puts your goal within reach — keep it up."
-        return "Your finances are stable this period. Consistent saving will accelerate your goal progress."
+            return "وتيرتك الحالية تضعك في متناول هدفك — واصل هكذا! 🎯"
+        return "أوضاعك المالية مستقرة. الادخار المنتظم سيُسرّع تحقيق هدفك 🌱"

@@ -11,6 +11,9 @@ pip install -q -r backend/requirements.txt
 echo "🔧 [post-merge] Fetching Flutter dependencies..."
 cd athar_frontend
 flutter pub get --suppress-analytics
+# Invalidate the build stamp so start.sh does a full rebuild after the merge
+# picks up any new Dart/asset/pubspec changes from the task agent.
+rm -f build/web/.build_stamp
 cd ..
 
-echo "✅ [post-merge] Dependencies ready."
+echo "✅ [post-merge] Dependencies ready. Build stamp cleared — next start will rebuild Flutter."

@@ -1,13 +1,19 @@
-
 """
 Privacy-First Offline Categorization Engine.
 
 Classifies raw bank transaction descriptions into a `CategoryEnum` using a
-purely local Regex/Dictionary lookup â€” no network call, no third-party AI
+purely local Regex/Dictionary lookup — no network call, no third-party AI
 API, no data leaving the process boundary. This module lives in the
 Business layer and is only ever invoked through a Facade (see
 `app/business/facades/`); it must never be imported directly by the
 Presentation layer.
+
+Bilingual design (English + Arabic):
+- English pass: single pre-compiled alternation regex with \\b word-boundaries.
+  Keywords sorted longest-first so specific phrases beat short substrings.
+- Arabic pass: plain substring scan after diacritic normalisation.
+  \\b boundaries don't work with Arabic Unicode, so we use a simple
+  linear scan instead — still O(n × k) worst-case but k is small and fixed.
 """
 
 import re
@@ -20,98 +26,166 @@ class CategorizationEngine:
     """
     Maps a transaction description to a spending category via keyword rules.
 
-    Design notes:
-    - `_rules_dictionary` is the single source of truth for merchant/keyword
-      â†’ category mappings. Extend this dict to add new merchants; no other
-      code path needs to change.
-    - Matching is performed with **one pre-compiled alternation regex**
-      rather than iterating over the dictionary and calling `re.search`
-      once per keyword. This turns classification into a single linear
-      scan of the input string regardless of how large the rules
-      dictionary grows, which keeps `classify()` fast enough to run
-      synchronously in the request path.
-    - Keywords are sorted longest-first before compilation so that a more
-      specific phrase (e.g. "saudi electricity") is preferred over a
-      shorter substring that might otherwise match first in an
-      unordered alternation.
+    Call `classify(description)` — returns a `CategoryEnum`.
     """
 
-    # Merchant / keyword â†’ category rules, tuned for a Saudi / GCC context.
-    # Keys are lowercase, cleaned keywords (no punctuation); values are
-    # CategoryEnum members.
-    _rules_dictionary: dict[str, CategoryEnum] = {
-        # --- Groceries ---
+    # ── English / Latin keywords ──────────────────────────────────────────
+    _en_rules: dict[str, CategoryEnum] = {
+        # Groceries
         "panda": CategoryEnum.GROCERIES,
         "othaim": CategoryEnum.GROCERIES,
         "carrefour": CategoryEnum.GROCERIES,
         "danube": CategoryEnum.GROCERIES,
         "tamimi": CategoryEnum.GROCERIES,
-        # --- Utilities ---
+        "hypermarket": CategoryEnum.GROCERIES,
+        "supermarket": CategoryEnum.GROCERIES,
+        "lulu": CategoryEnum.GROCERIES,
+        "farm superstore": CategoryEnum.GROCERIES,
+        # Utilities
         "stc": CategoryEnum.UTILITIES,
         "mobily": CategoryEnum.UTILITIES,
         "zain": CategoryEnum.UTILITIES,
         "electricity": CategoryEnum.UTILITIES,
         "water": CategoryEnum.UTILITIES,
-        # --- Entertainment ---
+        "internet": CategoryEnum.UTILITIES,
+        "saudi aramco": CategoryEnum.UTILITIES,
+        "sec": CategoryEnum.UTILITIES,
+        # Entertainment
         "starbucks": CategoryEnum.ENTERTAINMENT,
         "netflix": CategoryEnum.ENTERTAINMENT,
         "shahid": CategoryEnum.ENTERTAINMENT,
         "vox": CategoryEnum.ENTERTAINMENT,
         "muvi": CategoryEnum.ENTERTAINMENT,
-        # --- Savings / Investment ---
+        "cinema": CategoryEnum.ENTERTAINMENT,
+        "restaurant": CategoryEnum.ENTERTAINMENT,
+        "cafe": CategoryEnum.ENTERTAINMENT,
+        "coffee": CategoryEnum.ENTERTAINMENT,
+        "gaming": CategoryEnum.ENTERTAINMENT,
+        "playstation": CategoryEnum.ENTERTAINMENT,
+        "spotify": CategoryEnum.ENTERTAINMENT,
+        "apple music": CategoryEnum.ENTERTAINMENT,
+        "mcdonalds": CategoryEnum.ENTERTAINMENT,
+        "mcdonald": CategoryEnum.ENTERTAINMENT,
+        "burger king": CategoryEnum.ENTERTAINMENT,
+        "kfc": CategoryEnum.ENTERTAINMENT,
+        # Savings / Investment
         "murabaha": CategoryEnum.SAVINGS,
         "tadawul": CategoryEnum.SAVINGS,
         "wafir": CategoryEnum.SAVINGS,
         "investment": CategoryEnum.SAVINGS,
+        "savings": CategoryEnum.SAVINGS,
+        "alinma": CategoryEnum.SAVINGS,
+        "riyad bank": CategoryEnum.SAVINGS,
+        "salary": CategoryEnum.SAVINGS,
     }
 
-    # Replaces anything that isn't a lowercase letter or digit with a single
-    # space, so punctuation acts as a word separator rather than fusing
-    # adjacent tokens together (e.g. "NETFLIX.COM" -> "netflix com", not
-    # "netflixcom", which would otherwise break \b-anchored matching).
-    _CLEAN_PATTERN = re.compile(r"[^a-z0-9]+")
+    # ── Arabic keywords ───────────────────────────────────────────────────
+    # Checked in descending length order so longer phrases win on overlap.
+    _ar_rules: dict[str, CategoryEnum] = {
+        # Savings — keep most specific phrases first in the dict
+        "ادخار شهري": CategoryEnum.SAVINGS,
+        "توفير شهري": CategoryEnum.SAVINGS,
+        "تحويل ادخار": CategoryEnum.SAVINGS,
+        "صندوق الاستثمار": CategoryEnum.SAVINGS,
+        "مواد غذائية": CategoryEnum.GROCERIES,
+        "ادخار": CategoryEnum.SAVINGS,
+        "توفير": CategoryEnum.SAVINGS,
+        "استثمار": CategoryEnum.SAVINGS,
+        "وديعة": CategoryEnum.SAVINGS,
+        "راتب": CategoryEnum.SAVINGS,
+        # Groceries
+        "بقالة": CategoryEnum.GROCERIES,
+        "هايبر": CategoryEnum.GROCERIES,
+        "ماركت": CategoryEnum.GROCERIES,
+        "سوبر": CategoryEnum.GROCERIES,
+        "تموينات": CategoryEnum.GROCERIES,
+        "خضار": CategoryEnum.GROCERIES,
+        # Utilities
+        "كهرباء": CategoryEnum.UTILITIES,
+        "مياه": CategoryEnum.UTILITIES,
+        "ماء": CategoryEnum.UTILITIES,
+        "اتصالات": CategoryEnum.UTILITIES,
+        "هاتف": CategoryEnum.UTILITIES,
+        "إنترنت": CategoryEnum.UTILITIES,
+        "انترنت": CategoryEnum.UTILITIES,
+        "فاتورة": CategoryEnum.UTILITIES,
+        "فواتير": CategoryEnum.UTILITIES,
+        # Entertainment
+        "مطعم": CategoryEnum.ENTERTAINMENT,
+        "مقهى": CategoryEnum.ENTERTAINMENT,
+        "قهوة": CategoryEnum.ENTERTAINMENT,
+        "كافيه": CategoryEnum.ENTERTAINMENT,
+        "كافيتريا": CategoryEnum.ENTERTAINMENT,
+        "سينما": CategoryEnum.ENTERTAINMENT,
+        "ترفيه": CategoryEnum.ENTERTAINMENT,
+        "ألعاب": CategoryEnum.ENTERTAINMENT,
+        "العاب": CategoryEnum.ENTERTAINMENT,
+        "نتفليكس": CategoryEnum.ENTERTAINMENT,
+        "شاهد": CategoryEnum.ENTERTAINMENT,
+        "اشتراك": CategoryEnum.ENTERTAINMENT,
+        "وجبة": CategoryEnum.ENTERTAINMENT,
+        "برغر": CategoryEnum.ENTERTAINMENT,
+        "بيتزا": CategoryEnum.ENTERTAINMENT,
+    }
+
+    # Pre-sort Arabic rules longest-first so more specific phrases win.
+    _ar_rules_sorted: list[tuple[str, CategoryEnum]] = sorted(
+        _ar_rules.items(), key=lambda kv: len(kv[0]), reverse=True
+    )
+
+    # Strip non-alphanumeric (English pass)
+    _CLEAN_EN = re.compile(r"[^a-z0-9]+")
+    # Strip Arabic diacritics / tashkeel (Arabic pass)
+    _CLEAN_AR = re.compile(r"[\u0610-\u061a\u064b-\u065f\u0670]+")
 
     def __init__(self) -> None:
-        self._pattern = self._compile_rules_pattern()
+        self._en_pattern = self._compile_en_pattern()
 
-    def _compile_rules_pattern(self) -> re.Pattern[str]:
-        """
-        Builds a single alternation regex from `_rules_dictionary`, e.g.
-        `\\b(carrefour|electricity|starbucks|...)\\b`, with keywords ordered
-        longest-first so more specific phrases win over short substrings.
-        """
-        keywords = sorted(self._rules_dictionary.keys(), key=len, reverse=True)
-        escaped = (re.escape(keyword) for keyword in keywords)
+    def _compile_en_pattern(self) -> re.Pattern[str]:
+        keywords = sorted(self._en_rules.keys(), key=len, reverse=True)
+        escaped = (re.escape(k) for k in keywords)
         return re.compile(rf"\b({'|'.join(escaped)})\b")
 
     @staticmethod
-    def _clean(description: str) -> str:
-        """Lowercases input and normalizes punctuation/special characters to spaces."""
+    def _clean_en(description: str) -> str:
         lowered = description.strip().lower()
-        return CategorizationEngine._CLEAN_PATTERN.sub(" ", lowered).strip()
+        return CategorizationEngine._CLEAN_EN.sub(" ", lowered).strip()
+
+    @staticmethod
+    def _clean_ar(description: str) -> str:
+        """Remove diacritics and normalise whitespace for Arabic matching."""
+        stripped = CategorizationEngine._CLEAN_AR.sub("", description.strip())
+        return " ".join(stripped.split())
 
     def classify(self, description: str) -> CategoryEnum:
         """
         Classifies a raw transaction description into a `CategoryEnum`.
 
+        Runs an English regex pass first, then an Arabic substring pass.
+
         Args:
-            description: Raw merchant/transaction description as it appears
-                on the bank statement (e.g. "STARBUCKS COFFEE #4521 RIYADH").
+            description: Raw merchant/transaction description (Arabic or Latin).
 
         Returns:
             The matched `CategoryEnum`, or `CategoryEnum.UNCATEGORIZED` if
-            no rule matches the cleaned description.
+            no rule matches.
         """
         if not description:
             return CategoryEnum.UNCATEGORIZED
 
-        cleaned = self._clean(description)
-        match = self._pattern.search(cleaned)
+        # 1. English / Latin pass (fast regex, \b-bounded)
+        en_cleaned = self._clean_en(description)
+        m = self._en_pattern.search(en_cleaned)
+        if m:
+            return self._en_rules[m.group(1)]
 
-        if match is None:
-            return CategoryEnum.UNCATEGORIZED
+        # 2. Arabic pass (substring scan, longest-match wins)
+        ar_cleaned = self._clean_ar(description)
+        for keyword, category in self._ar_rules_sorted:
+            if keyword in ar_cleaned:
+                return category
 
-        return self._rules_dictionary[match.group(1)]
+        return CategoryEnum.UNCATEGORIZED
 
 
 @lru_cache
@@ -119,8 +193,6 @@ def get_categorization_engine() -> CategorizationEngine:
     """
     Returns a cached, singleton `CategorizationEngine` instance so the rules
     pattern is compiled exactly once per process and reused by every Facade
-    that depends on it (e.g. via FastAPI's `Depends`).
+    that depends on it.
     """
     return CategorizationEngine()
-
-

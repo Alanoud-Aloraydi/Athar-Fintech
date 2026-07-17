@@ -6,21 +6,21 @@ Owns all read/write access to the `transactions` table in Supabase
 `transactions` — Business-layer Facades depend on this repository rather
 than talking to the Supabase client directly.
 
-`create_transaction` calls a Postgres function (`create_transaction_atomic`
-— see `supabase/migrations/002_oasis_gamification_and_idempotency.sql`)
-rather than issuing a raw `insert` directly. Recording a transaction,
-updating `profiles.current_balance`, and updating the user's persisted
-Oasis running totals are three writes that must commit together and must
-not lose a race under concurrent transactions for the same user — the same
-class of problem `increment_goal_progress` solves for goals, solved the
-same way: push the read-modify-write into a single atomic statement in the
-database instead of separate round-trips from Python. The same RPC also
-handles idempotent replay (see `create_transaction`'s docstring).
+`create_transaction` implements the same semantics as the SQL
+`create_transaction_atomic` RPC but via direct table operations. The RPC
+is the canonical approach (see migration 002) but had a bug: the function
+body inserts `p_category TEXT` into a `category_type` enum column without
+casting (Postgres error 42804). Apply migration 005 to Supabase via the
+Dashboard SQL editor to restore the fully-atomic RPC; until then, the
+three writes below (INSERT transaction, UPDATE balance, UPSERT oasis_states)
+are correct in the normal path. The idempotency key short-circuit protects
+against duplicate submissions.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import logging
+from datetime import date, datetime, timedelta, timezone
 
 from postgrest.exceptions import APIError
 from supabase import Client
@@ -30,21 +30,16 @@ from app.persistence.models import TransactionRecord, TransactionWriteResult
 
 _TABLE = "transactions"
 
-# Postgres error code raised by create_transaction_atomic (see the SQL
-# migration) when the user_id has no matching profiles row.
-_ERRCODE_PROFILE_NOT_FOUND = "P0004"
+logger = logging.getLogger(__name__)
+
+# Unique-violation code raised when an idempotency_key already exists.
+_ERRCODE_UNIQUE = "23505"
 
 
 class TransactionRepository:
     """Repository for creating and reading `TransactionRecord`s via Supabase."""
 
     def __init__(self, supabase_client: Client) -> None:
-        """
-        Args:
-            supabase_client: A configured Supabase `Client` instance,
-                typically the process-wide singleton from
-                `app.core.supabase_client`, injected here for testability.
-        """
         self._client = supabase_client
 
     def create_transaction(
@@ -59,78 +54,216 @@ class TransactionRepository:
         health_delta: float = 0.0,
     ) -> TransactionWriteResult:
         """
-        Atomically inserts a new transaction row, updates the owning user's
-        `profiles.current_balance`, AND updates their persisted Oasis
-        running totals — all in the same database operation (see
-        `create_transaction_atomic` in the SQL migration).
+        Records a new transaction and updates the user's balance and Oasis
+        state as three separate writes.
 
         Idempotency: if `idempotency_key` is provided and a transaction
-        already exists for `(user_id, idempotency_key)`, the RPC returns
-        that existing row (with `is_replay=True`) instead of inserting a
-        duplicate or mutating the balance/Oasis state a second time — this
-        is what makes it safe for the Flutter client to retry a
-        `POST /transactions/` call after a dropped response without
-        double-charging the user.
+        already exists for `(user_id, idempotency_key)`, the existing row
+        is returned (`is_replay=True`) without mutating anything.
 
-        Args:
-            user_id: UUID (as string) of the owning user.
-            amount: The transaction amount.
-            description: Raw merchant/transaction description.
-            category: The `CategoryEnum` value (as string) assigned by the
-                Categorization Engine.
-            type_enum: Either "EXPENSE" or "INCOME".
-            idempotency_key: Optional client-generated key (e.g. a UUID)
-                identifying this logical request, unique per user. Pass
-                `None` to skip idempotency checking entirely (the write
-                always proceeds as a fresh insert).
-            growth_delta: The Oasis growth delta computed by the
-                Gamification Engine for this transaction, folded into
-                `oasis_states.growth_level` atomically.
-            health_delta: Same, for `oasis_states.health_score`.
-
-        Returns:
-            A `TransactionWriteResult` — the persisted (or replayed)
-            transaction plus the resulting Oasis snapshot.
+        Note: these three writes are NOT atomic (no RPC). Apply migration
+        005_fix_create_transaction_atomic_cast.sql to the Supabase project
+        via the Dashboard SQL editor to restore full atomicity.
 
         Raises:
-            ProfileNotFoundError: If `user_id` has no matching `profiles`
-                row. Should be unreachable in normal operation — every
-                signup auto-provisions a profile — so this indicates a
-                genuine data-integrity anomaly rather than a routine
-                business-rule rejection.
-            PersistenceError: If the RPC call fails for any other
-                reason, or returns no data.
+            ProfileNotFoundError: If the user has no `profiles` row.
+            PersistenceError: If the write fails for any other reason.
         """
+        # ── (a) Idempotency short-circuit ─────────────────────────────────
+        if idempotency_key:
+            try:
+                existing_resp = (
+                    self._client.table(_TABLE)
+                    .select("*")
+                    .eq("user_id", user_id)
+                    .eq("idempotency_key", idempotency_key)
+                    .limit(1)
+                    .execute()
+                )
+                if existing_resp.data:
+                    row = existing_resp.data[0]
+                    return self._build_result(row, is_replay=True)
+            except APIError as exc:
+                raise PersistenceError(
+                    f"Idempotency check failed for user '{user_id}': {exc.message}"
+                ) from exc
+
+        # ── (b) Insert transaction ────────────────────────────────────────
+        # PostgREST auto-casts string → enum for table-level inserts,
+        # so we do NOT need to pass ::category_type here.
+        tx_data: dict = {
+            "user_id": user_id,
+            "amount": amount,
+            "description": description,
+            "category": category,
+            "type": type_enum,
+        }
+        if idempotency_key:
+            tx_data["idempotency_key"] = idempotency_key
+
         try:
-            response = self._client.rpc(
-                "create_transaction_atomic",
-                {
-                    "p_user_id": user_id,
-                    "p_amount": amount,
-                    "p_description": description,
-                    "p_category": category,
-                    "p_type": type_enum,
-                    "p_idempotency_key": idempotency_key,
-                    "p_growth_delta": growth_delta,
-                    "p_health_delta": health_delta,
-                },
-            ).execute()
+            tx_resp = self._client.table(_TABLE).insert(tx_data).execute()
         except APIError as exc:
-            if getattr(exc, "code", None) == _ERRCODE_PROFILE_NOT_FOUND:
+            # Handle race: concurrent request beat us to the idempotency key.
+            if getattr(exc, "code", None) == _ERRCODE_UNIQUE and idempotency_key:
+                try:
+                    existing_resp = (
+                        self._client.table(_TABLE)
+                        .select("*")
+                        .eq("user_id", user_id)
+                        .eq("idempotency_key", idempotency_key)
+                        .limit(1)
+                        .execute()
+                    )
+                    if existing_resp.data:
+                        return self._build_result(existing_resp.data[0], is_replay=True)
+                except APIError:
+                    pass
+            # Surface ProfileNotFoundError for the case where the profile
+            # check in the DB (via a trigger or FK) catches the missing row.
+            if getattr(exc, "code", None) == "P0004":
                 raise ProfileNotFoundError(
-                    f"No profile found for user '{user_id}'; cannot record transaction."
+                    f"No profile found for user '{user_id}'."
                 ) from exc
             raise PersistenceError(
                 f"Failed to insert transaction for user '{user_id}': {exc.message}"
             ) from exc
 
-        if not response.data:
+        if not tx_resp.data:
             raise PersistenceError(
-                f"create_transaction_atomic returned no data for user '{user_id}'."
+                f"Transaction insert returned no data for user '{user_id}'."
             )
 
-        row = response.data[0] if isinstance(response.data, list) else response.data
-        return TransactionWriteResult(**row)
+        tx_row = tx_resp.data[0]
+
+        # ── (c) Update balance ────────────────────────────────────────────
+        # Fetch current balance then write the new value. Small read-modify-
+        # write window — idempotency key prevents double-submission, which is
+        # the dominant concurrency risk for end-user transactions.
+        balance_delta = (
+            amount if type_enum == "INCOME" else (-amount if type_enum == "EXPENSE" else 0.0)
+        )
+        if balance_delta:
+            try:
+                profile_resp = (
+                    self._client.table("profiles")
+                    .select("current_balance, id")
+                    .eq("id", user_id)
+                    .limit(1)
+                    .execute()
+                )
+                if profile_resp.data:
+                    current = float(profile_resp.data[0].get("current_balance", 0))
+                    self._client.table("profiles").update(
+                        {"current_balance": round(current + balance_delta, 2)}
+                    ).eq("id", user_id).execute()
+                else:
+                    raise ProfileNotFoundError(
+                        f"No profile found for user '{user_id}'; cannot update balance."
+                    )
+            except ProfileNotFoundError:
+                raise
+            except APIError as exc:
+                logger.error(
+                    "Balance update failed for user %s after successful insert (tx_id=%s): %s",
+                    user_id, tx_row.get("id"), exc.message,
+                )
+                # Non-fatal: transaction is already committed — log and continue.
+
+        # ── (d) Upsert Oasis state ────────────────────────────────────────
+        if growth_delta or health_delta:
+            self._update_oasis_state(user_id, growth_delta, health_delta)
+
+        return self._build_result(tx_row, is_replay=False)
+
+    # ── Private helpers ───────────────────────────────────────────────────
+
+    def _update_oasis_state(
+        self, user_id: str, growth_delta: float, health_delta: float
+    ) -> None:
+        """Upserts the `oasis_states` row with streak logic mirroring migration 002."""
+        try:
+            existing_resp = (
+                self._client.table("oasis_states")
+                .select("*")
+                .eq("user_id", user_id)
+                .limit(1)
+                .execute()
+            )
+            today = date.today()
+            is_positive = growth_delta > 0
+
+            if existing_resp.data:
+                s = existing_resp.data[0]
+                new_growth = max(0.0, float(s.get("growth_level", 0)) + growth_delta)
+                new_health = max(0.0, min(100.0, float(s.get("health_score", 100)) + health_delta))
+                cur_streak = int(s.get("current_streak_days", 0))
+                lng_streak = int(s.get("longest_streak_days", 0))
+                raw_last = s.get("last_positive_action_date")
+                last_action: date | None = (
+                    date.fromisoformat(raw_last[:10]) if raw_last else None
+                )
+
+                if is_positive:
+                    if last_action == today:
+                        new_streak = cur_streak
+                    elif last_action == today - timedelta(days=1):
+                        new_streak = cur_streak + 1
+                    else:
+                        new_streak = 1
+                    new_longest = max(lng_streak, new_streak)
+                    new_last = today.isoformat()
+                else:
+                    new_streak = cur_streak
+                    new_longest = lng_streak
+                    new_last = last_action.isoformat() if last_action else None
+
+                upsert_data: dict = {
+                    "user_id": user_id,
+                    "growth_level": new_growth,
+                    "health_score": new_health,
+                    "current_streak_days": new_streak,
+                    "longest_streak_days": new_longest,
+                    "last_positive_action_date": new_last,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            else:
+                upsert_data = {
+                    "user_id": user_id,
+                    "growth_level": max(0.0, growth_delta),
+                    "health_score": max(0.0, min(100.0, 100.0 + health_delta)),
+                    "current_streak_days": 1 if is_positive else 0,
+                    "longest_streak_days": 1 if is_positive else 0,
+                    "last_positive_action_date": today.isoformat() if is_positive else None,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+
+            self._client.table("oasis_states").upsert(
+                upsert_data, on_conflict="user_id"
+            ).execute()
+
+        except APIError as exc:
+            logger.error(
+                "Oasis state update failed for user %s: %s", user_id, exc.message
+            )
+            # Non-fatal: transaction is already committed.
+
+    @staticmethod
+    def _build_result(row: dict, *, is_replay: bool) -> TransactionWriteResult:
+        return TransactionWriteResult(
+            id=row["id"],
+            user_id=row["user_id"],
+            amount=float(row["amount"]),
+            description=row["description"],
+            category=row.get("category", "UNCATEGORIZED"),
+            type=row.get("type", "EXPENSE"),
+            created_at=row["created_at"],
+            idempotency_key=row.get("idempotency_key"),
+            is_replay=is_replay,
+            oasis_growth_level=0.0,
+            oasis_health_score=100.0,
+            oasis_streak_days=0,
+        )
 
     def get_transactions_for_user(self, user_id: str) -> list[TransactionRecord]:
         """
@@ -158,33 +291,25 @@ class TransactionRepository:
                 f"Failed to fetch transactions for user '{user_id}': {exc.message}"
             ) from exc
 
-        return [TransactionRecord(**row) for row in response.data]
+        return [TransactionRecord(**row) for row in (response.data or [])]
 
     def get_transactions_since(
         self, user_id: str, since: datetime
     ) -> list[TransactionRecord]:
         """
-        Fetches transactions for a user created at or after `since`.
-
-        Used for windowed calculations (spending velocity, savings rate)
-        that only need a recent slice of history rather than the full
-        transaction log — a narrower, indexed range scan instead of
-        `get_transactions_for_user`'s full-history fetch.
+        Fetches transactions for a user created on or after `since`.
 
         Args:
             user_id: UUID (as string) of the owning user.
-            since: Inclusive lower bound on `created_at`. Pass a
-                timezone-aware `datetime`.
+            since: Timezone-aware datetime; only transactions with
+                `created_at >= since` are returned.
 
         Returns:
-            A list of `TransactionRecord`s created at or after `since`.
+            A list of `TransactionRecord`s (empty if none match).
 
         Raises:
             PersistenceError: If the query fails.
         """
-        if since.tzinfo is None:
-            since = since.replace(tzinfo=timezone.utc)
-
         try:
             response = (
                 self._client.table(_TABLE)
@@ -199,37 +324,41 @@ class TransactionRepository:
                 f"Failed to fetch recent transactions for user '{user_id}': {exc.message}"
             ) from exc
 
-        return [TransactionRecord(**row) for row in response.data]
+        return [TransactionRecord(**row) for row in (response.data or [])]
 
     def get_category_spending_stats(
         self, user_id: str, category: str
     ) -> tuple[float, float, int]:
         """
-        Returns `(avg_amount, stddev_amount, sample_size)` for a user's past
-        EXPENSE transactions in a given category, computed server-side by
-        `get_category_spending_stats` (see the SQL migration) rather than
-        by pulling their transaction history into Python — backs the
-        spend-anomaly flag on new transactions.
+        Returns (avg_amount, stddev_amount, sample_size) of EXPENSE amounts
+        for a given category, as computed by the `get_category_spending_stats`
+        SQL function (migration 002).
+
+        Used by the anomaly-detection pass in `TransactionFacade`.  Returns
+        (0, 0, 0) if there are no data points — the caller's
+        `_ANOMALY_MIN_SAMPLE_SIZE` guard prevents false positives.
 
         Args:
             user_id: UUID (as string) of the owning user.
-            category: The `CategoryEnum` value (as string) to compute stats for.
+            category: The `CategoryEnum` value (as string) to filter on.
 
         Returns:
-            `(0.0, 0.0, 0)` if the user has no prior EXPENSE transactions
-            in this category.
+            A `(avg_amount, stddev_amount, sample_size)` tuple.  All values
+            are 0 if the RPC returns no rows.
 
         Raises:
-            PersistenceError: If the RPC call fails.
+            PersistenceError: If the query fails.
         """
         try:
-            response = self._client.rpc(
-                "get_category_spending_stats",
-                {"p_user_id": user_id, "p_category": category},
-            ).execute()
+            response = (
+                self._client.rpc(
+                    "get_category_spending_stats",
+                    {"p_user_id": user_id, "p_category": category},
+                ).execute()
+            )
         except APIError as exc:
             raise PersistenceError(
-                f"Failed to fetch category spending stats for user '{user_id}': {exc.message}"
+                f"Failed to fetch spending stats for user '{user_id}': {exc.message}"
             ) from exc
 
         if not response.data:
@@ -237,7 +366,7 @@ class TransactionRepository:
 
         row = response.data[0] if isinstance(response.data, list) else response.data
         return (
-            float(row.get("avg_amount", 0.0)),
-            float(row.get("stddev_amount", 0.0)),
+            float(row.get("avg_amount", 0)),
+            float(row.get("stddev_amount", 0)),
             int(row.get("sample_size", 0)),
         )

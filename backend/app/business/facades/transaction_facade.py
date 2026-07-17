@@ -22,6 +22,7 @@ from app.business.gamification.engine import GamificationEngine
 from app.core.exceptions import PersistenceError
 from app.persistence.models import TransactionWriteResult
 from app.persistence.repositories.goal_repo import GoalRepository
+from app.persistence.repositories.profile_repo import ProfileRepository
 from app.persistence.repositories.transaction_repo import TransactionRepository
 from app.presentation.schemas.transactions import (
     TransactionCreateDTO,
@@ -51,6 +52,7 @@ class TransactionFacade:
         gamification_engine: GamificationEngine,
         transaction_repository: TransactionRepository,
         goal_repository: GoalRepository,
+        profile_repository: ProfileRepository,
     ) -> None:
         """
         Args:
@@ -60,11 +62,14 @@ class TransactionFacade:
             transaction_repository: Persists/reads transactions and the
                 persisted Oasis running totals.
             goal_repository: Reads/updates the user's active Financial Goal.
+            profile_repository: Used to auto-provision a profiles row for
+                new users who haven't had one created by a DB trigger yet.
         """
         self._categorization_engine = categorization_engine
         self._gamification_engine = gamification_engine
         self._transaction_repository = transaction_repository
         self._goal_repository = goal_repository
+        self._profile_repository = profile_repository
 
     def process_and_store(self, payload: TransactionCreateDTO) -> TransactionResponseDTO:
         """
@@ -106,6 +111,10 @@ class TransactionFacade:
                 response — the Facade does not know about HTTP.
         """
         user_id_str = str(payload.user_id)
+
+        # Auto-provision the profiles row for new users (idempotent upsert —
+        # safe to call on every transaction if the row already exists).
+        self._profile_repository.ensure_profile(user_id_str)
 
         category = self._categorization_engine.classify(payload.description)
 

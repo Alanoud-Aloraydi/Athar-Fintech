@@ -5,3 +5,6 @@ pydantic-settings==2.7.1
 supabase==2.11.0
 python-dotenv==1.0.1
 PyJWT==2.10.1
+cryptography==44.0.3
+slowapi==0.1.9
+limits==3.14.0

@@ -132,7 +132,9 @@ class AnalyticsFacade:
                 propagate to the Presentation layer, which maps it to an
                 HTTP response — the Facade does not know about HTTP.
         """
-        profile = self._profile_repository.get_profile(user_id)
+        # ensure_profile auto-creates the row with sensible defaults if the
+        # Supabase Auth user hasn't had a profile provisioned yet.
+        profile = self._profile_repository.ensure_profile(user_id)
         active_goal = self._goal_repository.get_active_goal(user_id)
         oasis_state = self._oasis_repository.get_state(user_id)
 
