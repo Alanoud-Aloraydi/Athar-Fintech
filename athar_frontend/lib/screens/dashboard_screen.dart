@@ -9,14 +9,15 @@ import 'add_transaction_sheet.dart';
 
 class DashboardScreen extends StatefulWidget {
   final String userId;
-  const DashboardScreen({super.key, required this.userId});
+  final ApiService? api;
+  const DashboardScreen({super.key, required this.userId, this.api});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final _api = ApiService();
+  late final ApiService _api = widget.api ?? ApiService();
   late Future<DashboardSummary> _future;
   final _currencyFmt = NumberFormat.currency(locale: 'ar_SA', symbol: 'ر.س', decimalDigits: 2);
   final _dateFmt = DateFormat('d MMM yyyy', 'ar');

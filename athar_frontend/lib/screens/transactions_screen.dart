@@ -11,14 +11,15 @@ import '../widgets/common_widgets.dart';
 /// which is what a judging committee needs to see the whole picture.
 class TransactionsScreen extends StatefulWidget {
   final String userId;
-  const TransactionsScreen({super.key, required this.userId});
+  final ApiService? api;
+  const TransactionsScreen({super.key, required this.userId, this.api});
 
   @override
   State<TransactionsScreen> createState() => _TransactionsScreenState();
 }
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
-  final _api = ApiService();
+  late final ApiService _api = widget.api ?? ApiService();
   late Future<List<TransactionHistoryItem>> _historyFuture;
 
   @override
