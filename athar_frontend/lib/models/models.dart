@@ -1,0 +1,315 @@
+import 'package:flutter/material.dart';
+
+/// Mirrors backend `app.business.categorization.models.CategoryEnum` exactly.
+/// The backend is the single source of truth for this set — do not add
+/// values here without adding them server-side first.
+enum AppCategory { groceries, utilities, entertainment, savings, uncategorized }
+
+extension AppCategoryX on AppCategory {
+  static AppCategory fromApi(String value) {
+    switch (value) {
+      case 'GROCERIES':
+        return AppCategory.groceries;
+      case 'UTILITIES':
+        return AppCategory.utilities;
+      case 'ENTERTAINMENT':
+        return AppCategory.entertainment;
+      case 'SAVINGS':
+        return AppCategory.savings;
+      default:
+        return AppCategory.uncategorized;
+    }
+  }
+
+  String get apiValue {
+    switch (this) {
+      case AppCategory.groceries:
+        return 'GROCERIES';
+      case AppCategory.utilities:
+        return 'UTILITIES';
+      case AppCategory.entertainment:
+        return 'ENTERTAINMENT';
+      case AppCategory.savings:
+        return 'SAVINGS';
+      case AppCategory.uncategorized:
+        return 'UNCATEGORIZED';
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case AppCategory.groceries:
+        return 'بقالة وتموين';
+      case AppCategory.utilities:
+        return 'فواتير وخدمات';
+      case AppCategory.entertainment:
+        return 'ترفيه';
+      case AppCategory.savings:
+        return 'ادخار';
+      case AppCategory.uncategorized:
+        return 'غير مصنّف';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case AppCategory.groceries:
+        return Icons.shopping_basket_rounded;
+      case AppCategory.utilities:
+        return Icons.receipt_long_rounded;
+      case AppCategory.entertainment:
+        return Icons.local_movies_rounded;
+      case AppCategory.savings:
+        return Icons.savings_rounded;
+      case AppCategory.uncategorized:
+        return Icons.help_outline_rounded;
+    }
+  }
+}
+
+double _asDouble(dynamic v) => (v as num).toDouble();
+
+/// Mirrors `CategoryBreakdownDTO`.
+class CategoryBreakdown {
+  final AppCategory category;
+  final double totalAmount;
+  final int transactionCount;
+
+  CategoryBreakdown({required this.category, required this.totalAmount, required this.transactionCount});
+
+  factory CategoryBreakdown.fromJson(Map<String, dynamic> json) => CategoryBreakdown(
+        category: AppCategoryX.fromApi(json['category'] as String),
+        totalAmount: _asDouble(json['total_amount']),
+        transactionCount: json['transaction_count'] as int,
+      );
+}
+
+/// Mirrors `GoalProgressDTO` (embedded in DashboardSummaryDTO.active_goal).
+class GoalProgress {
+  final String goalId;
+  final String title;
+  final double targetAmount;
+  final double savedAmount;
+  final double progressRatio;
+
+  GoalProgress({
+    required this.goalId,
+    required this.title,
+    required this.targetAmount,
+    required this.savedAmount,
+    required this.progressRatio,
+  });
+
+  factory GoalProgress.fromJson(Map<String, dynamic> json) => GoalProgress(
+        goalId: json['goal_id'] as String,
+        title: json['title'] as String,
+        targetAmount: _asDouble(json['target_amount']),
+        savedAmount: _asDouble(json['saved_amount']),
+        progressRatio: _asDouble(json['progress_ratio']),
+      );
+}
+
+/// Mirrors `SmartInsightsDTO`.
+class SmartInsights {
+  final double spendingVelocityPerDay;
+  final DateTime? projectedGoalCompletionDate;
+  final String trajectoryMessage;
+
+  SmartInsights({
+    required this.spendingVelocityPerDay,
+    required this.projectedGoalCompletionDate,
+    required this.trajectoryMessage,
+  });
+
+  factory SmartInsights.fromJson(Map<String, dynamic> json) => SmartInsights(
+        spendingVelocityPerDay: _asDouble(json['spending_velocity_per_day']),
+        projectedGoalCompletionDate: json['projected_goal_completion_date'] != null
+            ? DateTime.parse(json['projected_goal_completion_date'] as String)
+            : null,
+        trajectoryMessage: json['trajectory_message'] as String,
+      );
+}
+
+/// Mirrors `DashboardSummaryDTO` — the unified GET /analytics/{user_id} payload.
+class DashboardSummary {
+  final String userId;
+  final double currentBalance;
+  final double totalIncome;
+  final double totalExpenses;
+  final double netFlow;
+  final GoalProgress? activeGoal;
+  final List<CategoryBreakdown> spendingByCategory;
+  final double oasisGrowthScore;
+  final double oasisHealthScore;
+  final SmartInsights insights;
+
+  DashboardSummary({
+    required this.userId,
+    required this.currentBalance,
+    required this.totalIncome,
+    required this.totalExpenses,
+    required this.netFlow,
+    required this.activeGoal,
+    required this.spendingByCategory,
+    required this.oasisGrowthScore,
+    required this.oasisHealthScore,
+    required this.insights,
+  });
+
+  factory DashboardSummary.fromJson(Map<String, dynamic> json) => DashboardSummary(
+        userId: json['user_id'] as String,
+        currentBalance: _asDouble(json['current_balance']),
+        totalIncome: _asDouble(json['total_income']),
+        totalExpenses: _asDouble(json['total_expenses']),
+        netFlow: _asDouble(json['net_flow']),
+        activeGoal: json['active_goal'] != null ? GoalProgress.fromJson(json['active_goal']) : null,
+        spendingByCategory: (json['spending_by_category'] as List)
+            .map((e) => CategoryBreakdown.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        oasisGrowthScore: _asDouble(json['oasis_growth_score']),
+        oasisHealthScore: _asDouble(json['oasis_health_score']),
+        insights: SmartInsights.fromJson(json['insights'] as Map<String, dynamic>),
+      );
+}
+
+/// Mirrors `GoalResponseDTO`.
+class Goal {
+  final String id;
+  final String userId;
+  final String title;
+  final double targetAmount;
+  final double savedAmount;
+  final AppCategory category;
+  final DateTime? deadline;
+  final String status;
+  final DateTime createdAt;
+
+  Goal({
+    required this.id,
+    required this.userId,
+    required this.title,
+    required this.targetAmount,
+    required this.savedAmount,
+    required this.category,
+    required this.deadline,
+    required this.status,
+    required this.createdAt,
+  });
+
+  factory Goal.fromJson(Map<String, dynamic> json) => Goal(
+        id: json['id'] as String,
+        userId: json['user_id'] as String,
+        title: json['title'] as String,
+        targetAmount: _asDouble(json['target_amount']),
+        savedAmount: _asDouble(json['saved_amount']),
+        category: AppCategoryX.fromApi(json['category'] as String),
+        deadline: json['deadline'] != null ? DateTime.parse(json['deadline'] as String) : null,
+        status: json['status'] as String,
+        createdAt: DateTime.parse(json['created_at'] as String),
+      );
+}
+
+/// Mirrors `OasisEnvironment` (Business-layer value object, embedded in OasisStateDTO).
+class OasisEnvironment {
+  final String weatherCondition; // stormy | cloudy | sunny | radiant
+  final String visualAura; // dormant | sprouting | flourishing | luminous
+  final double streakMultiplier;
+  final String moodMessage;
+
+  OasisEnvironment({
+    required this.weatherCondition,
+    required this.visualAura,
+    required this.streakMultiplier,
+    required this.moodMessage,
+  });
+
+  factory OasisEnvironment.fromJson(Map<String, dynamic> json) => OasisEnvironment(
+        weatherCondition: json['weather_condition'] as String,
+        visualAura: json['visual_aura'] as String,
+        streakMultiplier: _asDouble(json['streak_multiplier']),
+        moodMessage: json['mood_message'] as String,
+      );
+}
+
+/// Mirrors `OasisStateDTO` — GET /oasis/{user_id}.
+class OasisState {
+  final String userId;
+  final double growthLevel;
+  final double healthScore;
+  final int currentStreakDays;
+  final int longestStreakDays;
+  final OasisEnvironment environment;
+
+  OasisState({
+    required this.userId,
+    required this.growthLevel,
+    required this.healthScore,
+    required this.currentStreakDays,
+    required this.longestStreakDays,
+    required this.environment,
+  });
+
+  factory OasisState.fromJson(Map<String, dynamic> json) => OasisState(
+        userId: json['user_id'] as String,
+        growthLevel: _asDouble(json['growth_level']),
+        healthScore: _asDouble(json['health_score']),
+        currentStreakDays: json['current_streak_days'] as int,
+        longestStreakDays: json['longest_streak_days'] as int,
+        environment: OasisEnvironment.fromJson(json['environment'] as Map<String, dynamic>),
+      );
+}
+
+/// Mirrors `OasisImpact` (embedded in TransactionResponseDTO).
+class OasisImpact {
+  final double growthDelta;
+  final double healthDelta;
+  final String triggerReason;
+
+  OasisImpact({required this.growthDelta, required this.healthDelta, required this.triggerReason});
+
+  factory OasisImpact.fromJson(Map<String, dynamic> json) => OasisImpact(
+        growthDelta: _asDouble(json['growth_delta']),
+        healthDelta: _asDouble(json['health_delta']),
+        triggerReason: json['trigger_reason'] as String,
+      );
+}
+
+/// Mirrors `TransactionResponseDTO` — response of POST /transactions/.
+class TransactionResult {
+  final String id;
+  final String userId;
+  final String description;
+  final double amount;
+  final AppCategory category;
+  final String type; // EXPENSE | INCOME
+  final DateTime createdAt;
+  final OasisImpact oasisImpact;
+  final bool isReplay;
+  final bool isUnusualSpend;
+
+  TransactionResult({
+    required this.id,
+    required this.userId,
+    required this.description,
+    required this.amount,
+    required this.category,
+    required this.type,
+    required this.createdAt,
+    required this.oasisImpact,
+    required this.isReplay,
+    required this.isUnusualSpend,
+  });
+
+  factory TransactionResult.fromJson(Map<String, dynamic> json) => TransactionResult(
+        id: json['id'] as String,
+        userId: json['user_id'] as String,
+        description: json['description'] as String,
+        amount: _asDouble(json['amount']),
+        category: AppCategoryX.fromApi(json['category'] as String),
+        type: json['type'] as String,
+        createdAt: DateTime.parse(json['created_at'] as String),
+        oasisImpact: OasisImpact.fromJson(json['oasis_impact'] as Map<String, dynamic>),
+        isReplay: (json['is_replay'] as bool?) ?? false,
+        isUnusualSpend: (json['is_unusual_spend'] as bool?) ?? false,
+      );
+}
