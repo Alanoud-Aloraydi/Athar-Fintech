@@ -90,7 +90,8 @@ class DashboardSummaryDTO(BaseModel):
     """
     Outbound response for the unified `GET /analytics/{user_id}` endpoint —
     everything the Flutter dashboard needs in a single call: balance, active
-    goal progress, expense breakdown, Oasis scores, and Smart Insights.
+    goal progress, expense breakdown, Oasis scores, Smart Insights, plus the
+    Open Banking-derived Trajectory and Volatility metrics.
     """
 
     user_id: UUID
@@ -105,3 +106,34 @@ class DashboardSummaryDTO(BaseModel):
     oasis_growth_score: float
     oasis_health_score: float
     insights: SmartInsightsDTO
+
+    # --- Open Banking analytics (Trajectory & Volatility) ------------------
+    trajectory_deviation: float = Field(
+        default=0.0,
+        description=(
+            "Expected savings up to today minus actual savings. "
+            "Positive = ahead of schedule; negative = behind."
+        ),
+    )
+    trajectory_delay_months: float = Field(
+        default=0.0,
+        description="Estimated months of delay when trajectory_deviation is negative.",
+    )
+    spending_volatility: float = Field(
+        default=0.0,
+        description="Standard deviation of daily EXPENSE totals over the trailing 30-day window.",
+    )
+    nudge_message: str = Field(
+        default="",
+        description="Dynamic Arabic nudge generated from volatility and trajectory deviation.",
+    )
+
+
+class OpenBankingSyncResponseDTO(BaseModel):
+    """Response returned by POST /transactions/sync_open_banking/{user_id}."""
+
+    synced_count: int = Field(description="New transactions persisted this call.")
+    already_synced: int = Field(
+        description="Transactions skipped — already synced today (idempotency)."
+    )
+    message: str = Field(description="Arabic user-facing summary message.")

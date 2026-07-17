@@ -145,6 +145,12 @@ class DashboardSummary {
   final double oasisHealthScore;
   final SmartInsights insights;
 
+  // Open Banking analytics fields (Trajectory & Volatility)
+  final double trajectoryDeviation;
+  final double trajectoryDelayMonths;
+  final double spendingVolatility;
+  final String nudgeMessage;
+
   DashboardSummary({
     required this.userId,
     required this.currentBalance,
@@ -156,6 +162,10 @@ class DashboardSummary {
     required this.oasisGrowthScore,
     required this.oasisHealthScore,
     required this.insights,
+    this.trajectoryDeviation = 0.0,
+    this.trajectoryDelayMonths = 0.0,
+    this.spendingVolatility = 0.0,
+    this.nudgeMessage = '',
   });
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) => DashboardSummary(
@@ -171,6 +181,29 @@ class DashboardSummary {
         oasisGrowthScore: _asDouble(json['oasis_growth_score']),
         oasisHealthScore: _asDouble(json['oasis_health_score']),
         insights: SmartInsights.fromJson(json['insights'] as Map<String, dynamic>),
+        trajectoryDeviation: (json['trajectory_deviation'] as num?)?.toDouble() ?? 0.0,
+        trajectoryDelayMonths: (json['trajectory_delay_months'] as num?)?.toDouble() ?? 0.0,
+        spendingVolatility: (json['spending_volatility'] as num?)?.toDouble() ?? 0.0,
+        nudgeMessage: (json['nudge_message'] as String?) ?? '',
+      );
+}
+
+/// Mirrors `OpenBankingSyncResponseDTO` — response of POST /transactions/sync_open_banking/{user_id}.
+class OpenBankingSyncResult {
+  final int syncedCount;
+  final int alreadySynced;
+  final String message;
+
+  OpenBankingSyncResult({
+    required this.syncedCount,
+    required this.alreadySynced,
+    required this.message,
+  });
+
+  factory OpenBankingSyncResult.fromJson(Map<String, dynamic> json) => OpenBankingSyncResult(
+        syncedCount: json['synced_count'] as int,
+        alreadySynced: json['already_synced'] as int,
+        message: json['message'] as String,
       );
 }
 

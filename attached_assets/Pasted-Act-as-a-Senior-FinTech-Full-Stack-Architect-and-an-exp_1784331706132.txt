@@ -1,0 +1,34 @@
+Act as a Senior FinTech Full-Stack Architect and an expert in Open Banking APIs. We are in the final stages of the "Emdad Hackathon". We are pivoting our approach to simulate a deep integration with "Alinma Bank" and Open Banking, focusing on advanced analytics and Gamification (The Palm Oasis) rather than a boring manual transaction list.
+
+I need you to generate the exact code to modify both our FastAPI backend and Flutter frontend to achieve the following Product Vision:
+
+### 1. BACKEND: Open Banking Mock & Categorization Engine (FastAPI)
+Create a new endpoint (e.g., `POST /transactions/sync_open_banking/{user_id}`). This endpoint must NOT take user input for transactions. Instead, it generates a realistic Mock JSON response that mimics standard Open Banking APIs (containing transactionId, amount, merchantName, timestamp, status).
+- Inject real Saudi merchant names and map them to our internal categories automatically. Examples: 
+  - "Albaik", "HungerStation", "Starbucks" -> Entertainment/Food
+  - "Jarir Bookstore", "Extra" -> Tech/Education
+  - "Othaim Markets", "Panda" -> Groceries
+  - "STC", "SEC (Electricity)" -> Bills
+  - "Alinma Auto-Save" -> Savings (Positively impacts the Oasis)
+Write the logic to save these into our database.
+
+### 2. BACKEND: Trajectory & Volatility Algorithm (FastAPI)
+Update our `InsightsEngine` or dashboard endpoint to calculate two mathematical metrics based on these mock transactions:
+- Trajectory Deviation (Delta): (Expected Savings up to today) - (Actual Savings). If positive, the user is ahead. If negative, they are behind.
+- Spending Volatility (Standard Deviation): Calculate the standard deviation of daily spending. High volatility = reckless spending; Low volatility = stable financial behavior.
+- Link this directly to the Oasis variables: `growth` increases with total savings. `health` drops drastically if Trajectory Deviation is negative OR Volatility is high.
+
+### 3. FRONTEND: Dashboard UI Revamp (Flutter)
+- DELETE the standalone "Transactions" tab from the Bottom Navigation Bar completely.
+- In the Dashboard Screen, add an elegant "Sync with Alinma Wallet 🔄" Floating Action Button or top banner. When tapped, show a 2-second loading indicator (simulating secure bank connection) and call the new `/sync_open_banking` endpoint, then refresh the dashboard.
+- Replace the current Dashboard layout with 3 Smart Cards:
+  1. Alinma Wallet Balance (Total simulated balance).
+  2. Trajectory Card: Display the deviation (e.g., "You are behind by 250 SAR. Estimated goal delay: 2 months").
+  3. Smart Nudge Card: Dynamic text based on volatility (e.g., "High spending on Food this week! Save 50 SAR today to rescue your Oasis").
+
+### 4. FRONTEND: Oasis Gamification UI (Flutter)
+- The Oasis Screen must translate the `health` variable into an "Irrigation & Vitality Level".
+- If health is 100%: Show a positive state message ("Your Palm is thriving thanks to your Alinma budget commitment!").
+- If health is low (due to negative deviation): Show a red warning state ("Alert: Your Palm is thirsty! 🍂 Transfer 100 SAR to your savings now to irrigate it").
+
+Please provide the exact, copy-pasteable code for the modified Python files (routing, algorithm, mock data generation) and the modified Dart files (Dashboard, API service, Oasis Screen). Remove the old transactions tab logic entirely.

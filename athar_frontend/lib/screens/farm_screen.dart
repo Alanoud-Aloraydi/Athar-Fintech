@@ -207,6 +207,9 @@ class _FarmScreenState extends State<FarmScreen> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    // --- Irrigation & Vitality Level (Open Banking) ---
+                    _VitalityCard(healthScore: oasis.healthScore),
                   ],
                 );
               },
@@ -517,6 +520,79 @@ class _TransactionSimulatorCardState extends State<_TransactionSimulatorCard> {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Irrigation & Vitality Level Card ─────────────────────────────────────────
+
+class _VitalityCard extends StatelessWidget {
+  final double healthScore;
+  const _VitalityCard({required this.healthScore});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool thriving = healthScore >= 80;
+    final bool warning  = healthScore < 40;
+
+    final Color bg     = thriving ? AppColors.success.withOpacity(0.07)
+                       : warning  ? AppColors.danger.withOpacity(0.07)
+                       :            AppColors.gold.withOpacity(0.07);
+    final Color border = thriving ? AppColors.success.withOpacity(0.25)
+                       : warning  ? AppColors.danger.withOpacity(0.25)
+                       :            AppColors.gold.withOpacity(0.25);
+    final Color iconColor = thriving ? AppColors.success
+                          : warning  ? AppColors.danger
+                          :            AppColors.gold;
+    final IconData icon = thriving ? Icons.water_drop_rounded
+                        : warning  ? Icons.warning_amber_rounded
+                        :            Icons.opacity_rounded;
+    final String message = thriving
+        ? 'نخلتك تزدهر بفضل التزامك بميزانية الإنماء! 🌴 واصل الادخار للحفاظ على حيويتها'
+        : warning
+        ? 'تحذير: نخلتك عطشى! 🍂 حوّل 100 ريال لمدخراتك الآن لإنقاذها'
+        : 'نخلتك بحاجة للري 💧 واصل الادخار المنتظم للحفاظ عليها';
+
+    return SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.water_drop_outlined, color: iconColor, size: 20),
+            const SizedBox(width: 8),
+            const Text('مستوى الري والحيوية', style: AppTextStyles.label),
+          ]),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12), border: Border.all(color: border)),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, color: iconColor, size: 22),
+                const SizedBox(width: 12),
+                Expanded(child: Text(message, style: AppTextStyles.body)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: (healthScore / 100).clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor: AppColors.border,
+              valueColor: AlwaysStoppedAnimation(iconColor),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'صحة الواحة: ${healthScore.toStringAsFixed(0)}٪',
+            style: AppTextStyles.small,
+          ),
         ],
       ),
     );

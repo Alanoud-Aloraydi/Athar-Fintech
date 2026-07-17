@@ -231,6 +231,21 @@ class ApiService {
     return TransactionResult.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  /// POST /transactions/sync_open_banking/{user_id} -> OpenBankingSyncResponseDTO
+  ///
+  /// Simulates an Alinma Open Banking pull: generates a realistic set of mock
+  /// Saudi transactions and stores them through the full backend pipeline
+  /// (categorization + gamification). Idempotency keys prevent duplicates if
+  /// called more than once on the same day.
+  Future<OpenBankingSyncResult> syncOpenBanking(String userId) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/transactions/sync_open_banking/$userId'),
+      headers: _authHeaders,
+    );
+    _checkStatus(res);
+    return OpenBankingSyncResult.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   /// GET /transactions/{user_id} -> List<TransactionHistoryItemDTO>
   ///
   /// Full transaction ledger, most recent first. Backs the standalone

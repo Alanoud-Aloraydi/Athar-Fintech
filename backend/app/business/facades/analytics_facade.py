@@ -13,8 +13,9 @@ itself.
 
 from __future__ import annotations
 
+import statistics
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
 from app.business.analytics.insights_engine import InsightsEngine
@@ -173,6 +174,12 @@ class AnalyticsFacade:
                 ),
             )
 
+        trajectory_deviation, trajectory_delay_months = self._calculate_trajectory(active_goal)
+        spending_volatility = self._calculate_volatility(recent_transactions)
+        nudge_message = self._generate_nudge(
+            trajectory_deviation, spending_volatility, breakdown
+        )
+
         return DashboardSummaryDTO(
             user_id=UUID(user_id),
             current_balance=profile.current_balance,
@@ -184,7 +191,105 @@ class AnalyticsFacade:
             oasis_growth_score=oasis_state.growth_level if oasis_state else 0.0,
             oasis_health_score=oasis_state.health_score if oasis_state else 100.0,
             insights=insights,
+            trajectory_deviation=trajectory_deviation,
+            trajectory_delay_months=trajectory_delay_months,
+            spending_volatility=spending_volatility,
+            nudge_message=nudge_message,
         )
+
+    # ------------------------------------------------------------------
+    # Open Banking analytics helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _calculate_trajectory(active_goal) -> tuple[float, float]:
+        """
+        Returns (trajectory_deviation, trajectory_delay_months).
+
+        trajectory_deviation = expected_savings_to_date - actual_saved_amount.
+        Positive  → ahead of schedule.
+        Negative  → behind schedule.
+        """
+        if active_goal is None:
+            return 0.0, 0.0
+
+        deadline = getattr(active_goal, "deadline", None)
+        created_at = getattr(active_goal, "created_at", None)
+        if deadline is None or created_at is None:
+            return 0.0, 0.0
+
+        # Normalise to plain date objects.
+        if isinstance(deadline, datetime):
+            deadline = deadline.date()
+        if isinstance(created_at, datetime):
+            created_at = created_at.date()
+
+        today = date.today()
+        total_days = (deadline - created_at).days
+        if total_days <= 0:
+            return 0.0, 0.0
+
+        elapsed = max(0, (today - created_at).days)
+        expected = min(active_goal.target_amount, (elapsed / total_days) * active_goal.target_amount)
+        deviation = round(expected - active_goal.saved_amount, 2)
+
+        # Estimate delay months only when behind.
+        delay_months = 0.0
+        if deviation < 0 and total_days > 0:
+            monthly_rate = active_goal.target_amount / max(1, total_days / 30)
+            delay_months = round(abs(deviation) / max(1.0, monthly_rate), 1)
+
+        return deviation, delay_months
+
+    @staticmethod
+    def _calculate_volatility(transactions: list) -> float:
+        """Standard deviation of daily EXPENSE totals (0 if < 2 data points)."""
+        daily: dict[date, float] = {}
+        for txn in transactions:
+            if txn.type != _EXPENSE:
+                continue
+            d = txn.created_at.date() if isinstance(txn.created_at, datetime) else txn.created_at
+            daily[d] = daily.get(d, 0.0) + txn.amount
+        values = list(daily.values())
+        if len(values) < 2:
+            return 0.0
+        return round(statistics.stdev(values), 2)
+
+    @staticmethod
+    def _generate_nudge(
+        deviation: float,
+        volatility: float,
+        breakdown: list[CategoryBreakdownDTO],
+    ) -> str:
+        _AR = {
+            "ENTERTAINMENT": "الترفيه",
+            "GROCERIES": "البقالة",
+            "UTILITIES": "الفواتير",
+            "SAVINGS": "الادخار",
+        }
+        top_cat_ar = ""
+        if breakdown:
+            top_cat_ar = _AR.get(breakdown[0].category.value.upper(), "")
+
+        if deviation < -300:
+            return (
+                f"تحذير: نخلتك عطشى! 🍂 أنت متأخر بـ {abs(deviation):.0f} ريال — "
+                "حوّل مبلغاً لمدخراتك الآن لإنقاذ واحتك"
+            )
+        if volatility > 300:
+            cat_note = f" على {top_cat_ar}" if top_cat_ar else ""
+            return (
+                f"إنفاق مرتفع{cat_note} هذا الأسبوع! "
+                "وفّر 50 ريالاً اليوم لإنقاذ واحتك 🌿"
+            )
+        if deviation < -100:
+            return (
+                f"أنت متأخر عن هدفك بـ {abs(deviation):.0f} ريال — "
+                "بعض الادخار الإضافي يُعيدك للمسار 💪"
+            )
+        if deviation > 100:
+            return f"رائع! أنت متقدم على الجدول بـ {deviation:.0f} ريال — واصل 🌟"
+        return "إنفاقك مستقر — الادخار المنتظم سيُسرّع تحقيق هدفك 🌱"
 
     @staticmethod
     def _summarize_transactions(

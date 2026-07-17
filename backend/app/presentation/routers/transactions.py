@@ -21,6 +21,7 @@ from app.business.facades.transaction_facade import TransactionFacade
 from app.core.exceptions import PersistenceError, ProfileNotFoundError
 from app.presentation.auth import get_current_user_id, require_matching_user
 from app.presentation.dependencies import get_transaction_facade
+from app.presentation.schemas.analytics import OpenBankingSyncResponseDTO
 from app.presentation.schemas.transactions import (
     TransactionCreateDTO,
     TransactionHistoryItemDTO,
@@ -86,6 +87,82 @@ async def create_transaction(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while processing the transaction.",
         ) from exc
+
+
+@router.post(
+    "/sync_open_banking/{user_id}",
+    response_model=OpenBankingSyncResponseDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Simulate Alinma Open Banking sync — generates and stores mock Saudi transactions",
+)
+async def sync_open_banking(
+    user_id: UUID,
+    facade: TransactionFacade = Depends(get_transaction_facade),
+    current_user_id: str = Depends(get_current_user_id),
+) -> OpenBankingSyncResponseDTO:
+    """
+    Mimics an Alinma Open Banking pull. Generates a realistic set of mock
+    Saudi transactions (merchants, amounts, types) and stores them through
+    the normal Facade pipeline so the Categorization Engine and Gamification
+    Engine both run. Idempotency keys scoped to today's date prevent duplicate
+    entries if the user syncs more than once in the same day.
+    """
+    require_matching_user(str(user_id), current_user_id)
+
+    from datetime import date as _date
+
+    _MOCK: list[dict] = [
+        # --- Entertainment ---
+        {"description": "Starbucks Coffee Riyadh",    "amount": 45.0,   "type": "EXPENSE"},
+        {"description": "Restaurant AlBaik",           "amount": 32.0,   "type": "EXPENSE"},
+        {"description": "Netflix Monthly Subscription","amount": 39.0,   "type": "EXPENSE"},
+        {"description": "Spotify Music",               "amount": 19.0,   "type": "EXPENSE"},
+        {"description": "VOX Cinemas",                 "amount": 75.0,   "type": "EXPENSE"},
+        {"description": "Coffee Shop Jarir",           "amount": 28.0,   "type": "EXPENSE"},
+        # --- Groceries ---
+        {"description": "Panda Supermarket",           "amount": 287.0,  "type": "EXPENSE"},
+        {"description": "Othaim Markets",              "amount": 156.0,  "type": "EXPENSE"},
+        {"description": "Tamimi Markets",              "amount": 198.0,  "type": "EXPENSE"},
+        # --- Utilities ---
+        {"description": "STC Monthly Bill",            "amount": 210.0,  "type": "EXPENSE"},
+        {"description": "Saudi Electricity SEC",       "amount": 320.0,  "type": "EXPENSE"},
+        # --- Savings / Income ---
+        {"description": "Alinma Auto-Save Transfer",   "amount": 1000.0, "type": "INCOME"},
+        {"description": "Salary Deposit Alinma",       "amount": 8000.0, "type": "INCOME"},
+    ]
+
+    today = _date.today().isoformat()
+    synced = 0
+    already_synced = 0
+
+    for mock in _MOCK:
+        key = f"alinma_sync_{today}_{mock['description'].replace(' ', '_')}"
+        payload = TransactionCreateDTO(
+            user_id=user_id,
+            amount=mock["amount"],
+            description=mock["description"],
+            type=mock["type"],
+            idempotency_key=key,
+        )
+        try:
+            result = await run_in_threadpool(facade.process_and_store, payload)
+            if result.is_replay:
+                already_synced += 1
+            else:
+                synced += 1
+        except Exception:  # noqa: BLE001
+            logger.warning("Skipped Open Banking mock: %s", mock["description"])
+
+    if synced == 0:
+        msg = "محفظتك محدَّثة بالفعل — تمت مزامنتها اليوم مسبقاً ✅"
+    else:
+        msg = f"تمت مزامنة {synced} معاملة بنجاح من محفظة الإنماء 🔄"
+
+    return OpenBankingSyncResponseDTO(
+        synced_count=synced,
+        already_synced=already_synced,
+        message=msg,
+    )
 
 
 @router.get(
