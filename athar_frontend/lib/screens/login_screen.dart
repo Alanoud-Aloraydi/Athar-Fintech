@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import '../services/auth_service.dart';
+import '../core/auth_error_mapper.dart';
 import 'signup_screen.dart';
 import 'main_navigation_screen.dart';
 
@@ -30,7 +31,8 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذّر تسجيل الدخول: $e')));
+      final message = friendlyAuthErrorMessage(e, fallback: 'تعذّر تسجيل الدخول، حاول مرة أخرى');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }

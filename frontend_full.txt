@@ -55,6 +55,180 @@ void registerPlugins([final Registrar? pluginRegistrar]) {
 }
 
 
+--- File: C:\Athar-Fintech-main\athar_frontend\.dart_tool\flutter_build\6173dc53aa0464c5653ea023132d8bd2\main.dart ---
+
+// @dart=3.12
+// Flutter web bootstrap script for package:athar/main.dart.
+//
+// Generated file. Do not edit.
+//
+
+// ignore_for_file: type=lint
+
+import 'dart:ui_web' as ui_web;
+import 'dart:async';
+
+import 'package:athar/main.dart' as entrypoint;
+import 'web_plugin_registrant.dart' as pluginRegistrant;
+
+typedef _UnaryFunction = dynamic Function(List<String> args);
+typedef _NullaryFunction = dynamic Function();
+
+Future<void> main() async {
+  await ui_web.bootstrapEngine(
+    runApp: () {
+      if (entrypoint.main is _UnaryFunction) {
+        return (entrypoint.main as _UnaryFunction)(<String>[]);
+      }
+      return (entrypoint.main as _NullaryFunction)();
+    },
+    registerPlugins: () {
+      pluginRegistrant.registerPlugins();
+    },
+  );
+}
+
+
+--- File: C:\Athar-Fintech-main\athar_frontend\.dart_tool\flutter_build\6173dc53aa0464c5653ea023132d8bd2\web_plugin_registrant.dart ---
+
+// Flutter web plugin registrant file.
+//
+// Generated file. Do not edit.
+//
+
+// @dart = 2.13
+// ignore_for_file: type=lint
+
+import 'package:app_links_web/app_links_web.dart';
+import 'package:shared_preferences_web/shared_preferences_web.dart';
+import 'package:url_launcher_web/url_launcher_web.dart';
+import 'package:flutter_web_plugins/flutter_web_plugins.dart';
+
+void registerPlugins([final Registrar? pluginRegistrar]) {
+  final Registrar registrar = pluginRegistrar ?? webPluginRegistrar;
+  AppLinksPluginWeb.registerWith(registrar);
+  SharedPreferencesPlugin.registerWith(registrar);
+  UrlLauncherPlugin.registerWith(registrar);
+  registrar.registerMessageHandler();
+}
+
+
+--- File: C:\Athar-Fintech-main\athar_frontend\.dart_tool\flutter_build\73634be3381f873d02d44ad62f5d768f\main.dart ---
+
+// @dart=3.12
+// Flutter web bootstrap script for package:athar/main.dart.
+//
+// Generated file. Do not edit.
+//
+
+// ignore_for_file: type=lint
+
+import 'dart:ui_web' as ui_web;
+import 'dart:async';
+
+import 'package:athar/main.dart' as entrypoint;
+import 'web_plugin_registrant.dart' as pluginRegistrant;
+
+typedef _UnaryFunction = dynamic Function(List<String> args);
+typedef _NullaryFunction = dynamic Function();
+
+Future<void> main() async {
+  await ui_web.bootstrapEngine(
+    runApp: () {
+      if (entrypoint.main is _UnaryFunction) {
+        return (entrypoint.main as _UnaryFunction)(<String>[]);
+      }
+      return (entrypoint.main as _NullaryFunction)();
+    },
+    registerPlugins: () {
+      pluginRegistrant.registerPlugins();
+    },
+  );
+}
+
+
+--- File: C:\Athar-Fintech-main\athar_frontend\.dart_tool\flutter_build\73634be3381f873d02d44ad62f5d768f\web_plugin_registrant.dart ---
+
+// Flutter web plugin registrant file.
+//
+// Generated file. Do not edit.
+//
+
+// @dart = 2.13
+// ignore_for_file: type=lint
+
+import 'package:app_links_web/app_links_web.dart';
+import 'package:shared_preferences_web/shared_preferences_web.dart';
+import 'package:url_launcher_web/url_launcher_web.dart';
+import 'package:flutter_web_plugins/flutter_web_plugins.dart';
+
+void registerPlugins([final Registrar? pluginRegistrar]) {
+  final Registrar registrar = pluginRegistrar ?? webPluginRegistrar;
+  AppLinksPluginWeb.registerWith(registrar);
+  SharedPreferencesPlugin.registerWith(registrar);
+  UrlLauncherPlugin.registerWith(registrar);
+  registrar.registerMessageHandler();
+}
+
+
+--- File: C:\Athar-Fintech-main\athar_frontend\.dart_tool\flutter_build\c76ea919941f9cec7a15b34121aade7f\main.dart ---
+
+// @dart=3.12
+// Flutter web bootstrap script for package:athar/main.dart.
+//
+// Generated file. Do not edit.
+//
+
+// ignore_for_file: type=lint
+
+import 'dart:ui_web' as ui_web;
+import 'dart:async';
+
+import 'package:athar/main.dart' as entrypoint;
+import 'web_plugin_registrant.dart' as pluginRegistrant;
+
+typedef _UnaryFunction = dynamic Function(List<String> args);
+typedef _NullaryFunction = dynamic Function();
+
+Future<void> main() async {
+  await ui_web.bootstrapEngine(
+    runApp: () {
+      if (entrypoint.main is _UnaryFunction) {
+        return (entrypoint.main as _UnaryFunction)(<String>[]);
+      }
+      return (entrypoint.main as _NullaryFunction)();
+    },
+    registerPlugins: () {
+      pluginRegistrant.registerPlugins();
+    },
+  );
+}
+
+
+--- File: C:\Athar-Fintech-main\athar_frontend\.dart_tool\flutter_build\c76ea919941f9cec7a15b34121aade7f\web_plugin_registrant.dart ---
+
+// Flutter web plugin registrant file.
+//
+// Generated file. Do not edit.
+//
+
+// @dart = 2.13
+// ignore_for_file: type=lint
+
+import 'package:app_links_web/app_links_web.dart';
+import 'package:shared_preferences_web/shared_preferences_web.dart';
+import 'package:url_launcher_web/url_launcher_web.dart';
+import 'package:flutter_web_plugins/flutter_web_plugins.dart';
+
+void registerPlugins([final Registrar? pluginRegistrar]) {
+  final Registrar registrar = pluginRegistrar ?? webPluginRegistrar;
+  AppLinksPluginWeb.registerWith(registrar);
+  SharedPreferencesPlugin.registerWith(registrar);
+  UrlLauncherPlugin.registerWith(registrar);
+  registrar.registerMessageHandler();
+}
+
+
 --- File: C:\Athar-Fintech-main\athar_frontend\lib\main.dart ---
 
 import 'package:flutter/material.dart';
@@ -2731,264 +2905,6 @@ ThemeData buildTheme(Brightness brightness) {
   );
 }
 
-// ============================================================================
-// --- Dark-mode-aware color API (additive) ------------------------------------
-// Appended for the new Settings/EditProfile/QuickLogin screens and any
-// widget that wants to react to appSettings.themeMode. Does NOT replace
-// AppColors/AppTextStyles/buildAppTheme() above -- existing screens are
-// unaffected.
-// ============================================================================
-
-class AppColorSet {
-  final Color background;
-  final Color surface;
-  final Color primary;
-  final Color primaryDark;
-  final Color accent;
-  final Color textPrimary;
-  final Color textSecondary;
-  final Color border;
-  final Color success;
-  final Color danger;
-  final Color gold;
-
-  const AppColorSet({
-    required this.background,
-    required this.surface,
-    required this.primary,
-    required this.primaryDark,
-    required this.accent,
-    required this.textPrimary,
-    required this.textSecondary,
-    required this.border,
-    required this.success,
-    required this.danger,
-    required this.gold,
-  });
-}
-
-const AppColorSet _lightColorSet = AppColorSet(
-  background: Color(0xFFFFF8F4),
-  surface: Color(0xFFFFFFFF),
-  primary: Color(0xFFFF7A50),
-  primaryDark: Color(0xFF16273F),
-  accent: Color(0xFFC9C6EE),
-  textPrimary: Color(0xFF16273F),
-  textSecondary: Color(0xFF6E7A8A),
-  border: Color(0xFFF0E3DB),
-  success: Color(0xFF2E8B57),
-  danger: Color(0xFFD9482F),
-  gold: Color(0xFFC9A227),
-);
-
-const AppColorSet _darkColorSet = AppColorSet(
-  background: Color(0xFF0B1220),
-  surface: Color(0xFF141F33),
-  primary: Color(0xFFFF8A5B),
-  primaryDark: Color(0xFFFF7A50),
-  accent: Color(0xFFC9C6EE),
-  textPrimary: Color(0xFFF5F1EC),
-  textSecondary: Color(0xFF9CA8B8),
-  border: Color(0xFF223349),
-  success: Color(0xFF4CAF7D),
-  danger: Color(0xFFFF6B52),
-  gold: Color(0xFFE0B94A),
-);
-
-extension AppColorContext on BuildContext {
-  AppColorSet get colors =>
-      Theme.of(this).brightness == Brightness.dark ? _darkColorSet : _lightColorSet;
-}
-
-class AppText {
-  static const String fontFamily = 'Tajawal';
-
-  static TextStyle h1(BuildContext c) => TextStyle(
-      fontFamily: fontFamily, fontSize: 30, fontWeight: FontWeight.bold, color: c.colors.textPrimary);
-
-  static TextStyle h2(BuildContext c) => TextStyle(
-      fontFamily: fontFamily, fontSize: 22, fontWeight: FontWeight.bold, color: c.colors.textPrimary);
-
-  static TextStyle body(BuildContext c) =>
-      TextStyle(fontFamily: fontFamily, fontSize: 15, color: c.colors.textSecondary, height: 1.6);
-
-  static TextStyle label(BuildContext c) => TextStyle(
-      fontFamily: fontFamily, fontSize: 14, fontWeight: FontWeight.w600, color: c.colors.textPrimary);
-
-  static TextStyle small(BuildContext c) =>
-      TextStyle(fontFamily: fontFamily, fontSize: 12.5, color: c.colors.textSecondary, height: 1.5);
-}
-
-ThemeData buildTheme(Brightness brightness) {
-  final colors = brightness == Brightness.dark ? _darkColorSet : _lightColorSet;
-  return ThemeData(
-    useMaterial3: true,
-    brightness: brightness,
-    scaffoldBackgroundColor: colors.background,
-    fontFamily: AppText.fontFamily,
-    colorScheme: ColorScheme.fromSeed(seedColor: colors.primary, brightness: brightness),
-    appBarTheme: AppBarTheme(
-      backgroundColor: colors.background,
-      foregroundColor: colors.textPrimary,
-      elevation: 0,
-      centerTitle: true,
-      titleTextStyle: TextStyle(
-          fontFamily: AppText.fontFamily, fontSize: 18, fontWeight: FontWeight.bold, color: colors.textPrimary),
-    ),
-    checkboxTheme: CheckboxThemeData(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-      fillColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? colors.primary : Colors.transparent),
-    ),
-    switchTheme: SwitchThemeData(
-      thumbColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? colors.primary : null),
-      trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? colors.primary.withOpacity(0.4) : null),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: colors.surface,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-      labelStyle: TextStyle(color: colors.textSecondary),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: colors.border)),
-      enabledBorder:
-          OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: colors.border)),
-      focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: colors.primary, width: 1.6)),
-    ),
-  );
-}
-
-// ============================================================================
-// --- Dark-mode-aware color API (additive) ------------------------------------
-// Appended for the new Settings/EditProfile/QuickLogin screens and any
-// widget that wants to react to appSettings.themeMode. Does NOT replace
-// AppColors/AppTextStyles/buildAppTheme() above -- existing screens are
-// unaffected.
-// ============================================================================
-
-class AppColorSet {
-  final Color background;
-  final Color surface;
-  final Color primary;
-  final Color primaryDark;
-  final Color accent;
-  final Color textPrimary;
-  final Color textSecondary;
-  final Color border;
-  final Color success;
-  final Color danger;
-  final Color gold;
-
-  const AppColorSet({
-    required this.background,
-    required this.surface,
-    required this.primary,
-    required this.primaryDark,
-    required this.accent,
-    required this.textPrimary,
-    required this.textSecondary,
-    required this.border,
-    required this.success,
-    required this.danger,
-    required this.gold,
-  });
-}
-
-const AppColorSet _lightColorSet = AppColorSet(
-  background: Color(0xFFFFF8F4),
-  surface: Color(0xFFFFFFFF),
-  primary: Color(0xFFFF7A50),
-  primaryDark: Color(0xFF16273F),
-  accent: Color(0xFFC9C6EE),
-  textPrimary: Color(0xFF16273F),
-  textSecondary: Color(0xFF6E7A8A),
-  border: Color(0xFFF0E3DB),
-  success: Color(0xFF2E8B57),
-  danger: Color(0xFFD9482F),
-  gold: Color(0xFFC9A227),
-);
-
-const AppColorSet _darkColorSet = AppColorSet(
-  background: Color(0xFF0B1220),
-  surface: Color(0xFF141F33),
-  primary: Color(0xFFFF8A5B),
-  primaryDark: Color(0xFFFF7A50),
-  accent: Color(0xFFC9C6EE),
-  textPrimary: Color(0xFFF5F1EC),
-  textSecondary: Color(0xFF9CA8B8),
-  border: Color(0xFF223349),
-  success: Color(0xFF4CAF7D),
-  danger: Color(0xFFFF6B52),
-  gold: Color(0xFFE0B94A),
-);
-
-extension AppColorContext on BuildContext {
-  AppColorSet get colors =>
-      Theme.of(this).brightness == Brightness.dark ? _darkColorSet : _lightColorSet;
-}
-
-class AppText {
-  static const String fontFamily = 'Tajawal';
-
-  static TextStyle h1(BuildContext c) => TextStyle(
-      fontFamily: fontFamily, fontSize: 30, fontWeight: FontWeight.bold, color: c.colors.textPrimary);
-
-  static TextStyle h2(BuildContext c) => TextStyle(
-      fontFamily: fontFamily, fontSize: 22, fontWeight: FontWeight.bold, color: c.colors.textPrimary);
-
-  static TextStyle body(BuildContext c) =>
-      TextStyle(fontFamily: fontFamily, fontSize: 15, color: c.colors.textSecondary, height: 1.6);
-
-  static TextStyle label(BuildContext c) => TextStyle(
-      fontFamily: fontFamily, fontSize: 14, fontWeight: FontWeight.w600, color: c.colors.textPrimary);
-
-  static TextStyle small(BuildContext c) =>
-      TextStyle(fontFamily: fontFamily, fontSize: 12.5, color: c.colors.textSecondary, height: 1.5);
-}
-
-ThemeData buildTheme(Brightness brightness) {
-  final colors = brightness == Brightness.dark ? _darkColorSet : _lightColorSet;
-  return ThemeData(
-    useMaterial3: true,
-    brightness: brightness,
-    scaffoldBackgroundColor: colors.background,
-    fontFamily: AppText.fontFamily,
-    colorScheme: ColorScheme.fromSeed(seedColor: colors.primary, brightness: brightness),
-    appBarTheme: AppBarTheme(
-      backgroundColor: colors.background,
-      foregroundColor: colors.textPrimary,
-      elevation: 0,
-      centerTitle: true,
-      titleTextStyle: TextStyle(
-          fontFamily: AppText.fontFamily, fontSize: 18, fontWeight: FontWeight.bold, color: colors.textPrimary),
-    ),
-    checkboxTheme: CheckboxThemeData(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-      fillColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? colors.primary : Colors.transparent),
-    ),
-    switchTheme: SwitchThemeData(
-      thumbColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? colors.primary : null),
-      trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? colors.primary.withOpacity(0.4) : null),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: colors.surface,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-      labelStyle: TextStyle(color: colors.textSecondary),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: colors.border)),
-      enabledBorder:
-          OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: colors.border)),
-      focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: colors.primary, width: 1.6)),
-    ),
-  );
-}
-
 
 --- File: C:\Athar-Fintech-main\athar_frontend\lib\widgets\common_widgets.dart ---
 
@@ -3179,300 +3095,6 @@ class ErrorRetryView extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// ============================================================================
-// --- New decorative widgets from Sarah's UI pass (additive, no collisions) --
-// ============================================================================
-
-/// Slow, continuous two-color wave gradient background.
-class AnimatedWavyBackground extends StatefulWidget {
-  final Widget child;
-  const AnimatedWavyBackground({super.key, required this.child});
-
-  @override
-  State<AnimatedWavyBackground> createState() => _AnimatedWavyBackgroundState();
-}
-
-class _AnimatedWavyBackgroundState extends State<AnimatedWavyBackground> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller =
-      AnimationController(vsync: this, duration: const Duration(seconds: 7))..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colorB = isDark ? const Color(0xFF17263D) : Colors.white;
-
-    return AnimatedBuilder(
-      animation: _controller,
-      child: widget.child,
-      builder: (context, child) {
-        final t = _controller.value;
-        final begin = Alignment(-1 + 2 * t, -1 + 1.4 * t);
-        final end = Alignment(1 - 1.4 * t, 1 - 2 * t);
-        return Stack(
-          children: [
-            Container(
-              width: double.infinity,
-              height: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(begin: begin, end: end, colors: [c.background, colorB, c.background]),
-              ),
-            ),
-            Positioned(
-              top: 60 + 30 * t,
-              right: -70 + 50 * t,
-              child: Container(
-                width: 260,
-                height: 260,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [c.primary.withOpacity(isDark ? 0.32 : 0.16), Colors.transparent]),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: -40 - 20 * t,
-              left: -50 + 30 * t,
-              child: Container(
-                width: 220,
-                height: 220,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [c.primaryDark.withOpacity(isDark ? 0.22 : 0.08), Colors.transparent]),
-                ),
-              ),
-            ),
-            child!,
-          ],
-        );
-      },
-    );
-  }
-}
-
-/// Light, continuous up/down wave motion for a child (used on buttons/icons).
-class WaveMotion extends StatefulWidget {
-  final Widget child;
-  final Duration duration;
-  final double amplitude;
-  const WaveMotion({super.key, required this.child, this.duration = const Duration(seconds: 2), this.amplitude = 4});
-
-  @override
-  State<WaveMotion> createState() => _WaveMotionState();
-}
-
-class _WaveMotionState extends State<WaveMotion> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: widget.duration)..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      child: widget.child,
-      builder: (context, child) {
-        final dy = (Curves.easeInOut.transform(_c.value) - 0.5) * 2 * widget.amplitude;
-        return Transform.translate(offset: Offset(0, dy), child: child);
-      },
-    );
-  }
-}
-
-/// Fade + slight upward slide entrance, optionally delayed (staggered lists).
-class FadeSlideIn extends StatefulWidget {
-  final Widget child;
-  final int delayMs;
-  const FadeSlideIn({super.key, required this.child, this.delayMs = 0});
-
-  @override
-  State<FadeSlideIn> createState() => _FadeSlideInState();
-}
-
-class _FadeSlideInState extends State<FadeSlideIn> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
-  late final Animation<double> _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-  late final Animation<Offset> _slide = Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
-      .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-
-  @override
-  void initState() {
-    super.initState();
-    Future.delayed(Duration(milliseconds: widget.delayMs), () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(opacity: _fade, child: SlideTransition(position: _slide, child: widget.child));
-  }
-}
-
-// ============================================================================
-// --- New decorative widgets from Sarah's UI pass (additive, no collisions) --
-// ============================================================================
-
-/// Slow, continuous two-color wave gradient background.
-class AnimatedWavyBackground extends StatefulWidget {
-  final Widget child;
-  const AnimatedWavyBackground({super.key, required this.child});
-
-  @override
-  State<AnimatedWavyBackground> createState() => _AnimatedWavyBackgroundState();
-}
-
-class _AnimatedWavyBackgroundState extends State<AnimatedWavyBackground> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller =
-      AnimationController(vsync: this, duration: const Duration(seconds: 7))..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colorB = isDark ? const Color(0xFF17263D) : Colors.white;
-
-    return AnimatedBuilder(
-      animation: _controller,
-      child: widget.child,
-      builder: (context, child) {
-        final t = _controller.value;
-        final begin = Alignment(-1 + 2 * t, -1 + 1.4 * t);
-        final end = Alignment(1 - 1.4 * t, 1 - 2 * t);
-        return Stack(
-          children: [
-            Container(
-              width: double.infinity,
-              height: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(begin: begin, end: end, colors: [c.background, colorB, c.background]),
-              ),
-            ),
-            Positioned(
-              top: 60 + 30 * t,
-              right: -70 + 50 * t,
-              child: Container(
-                width: 260,
-                height: 260,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [c.primary.withOpacity(isDark ? 0.32 : 0.16), Colors.transparent]),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: -40 - 20 * t,
-              left: -50 + 30 * t,
-              child: Container(
-                width: 220,
-                height: 220,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [c.primaryDark.withOpacity(isDark ? 0.22 : 0.08), Colors.transparent]),
-                ),
-              ),
-            ),
-            child!,
-          ],
-        );
-      },
-    );
-  }
-}
-
-/// Light, continuous up/down wave motion for a child (used on buttons/icons).
-class WaveMotion extends StatefulWidget {
-  final Widget child;
-  final Duration duration;
-  final double amplitude;
-  const WaveMotion({super.key, required this.child, this.duration = const Duration(seconds: 2), this.amplitude = 4});
-
-  @override
-  State<WaveMotion> createState() => _WaveMotionState();
-}
-
-class _WaveMotionState extends State<WaveMotion> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: widget.duration)..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      child: widget.child,
-      builder: (context, child) {
-        final dy = (Curves.easeInOut.transform(_c.value) - 0.5) * 2 * widget.amplitude;
-        return Transform.translate(offset: Offset(0, dy), child: child);
-      },
-    );
-  }
-}
-
-/// Fade + slight upward slide entrance, optionally delayed (staggered lists).
-class FadeSlideIn extends StatefulWidget {
-  final Widget child;
-  final int delayMs;
-  const FadeSlideIn({super.key, required this.child, this.delayMs = 0});
-
-  @override
-  State<FadeSlideIn> createState() => _FadeSlideInState();
-}
-
-class _FadeSlideInState extends State<FadeSlideIn> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
-  late final Animation<double> _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-  late final Animation<Offset> _slide = Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
-      .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-
-  @override
-  void initState() {
-    super.initState();
-    Future.delayed(Duration(milliseconds: widget.delayMs), () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(opacity: _fade, child: SlideTransition(position: _slide, child: widget.child));
   }
 }
 

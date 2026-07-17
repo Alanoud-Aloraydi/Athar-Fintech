@@ -1,4 +1,3 @@
-
 """
 Athar-Fintech API — application entrypoint.
 
@@ -7,11 +6,22 @@ Persistence-layer wiring is deliberately kept out of this module — routers
 imported here should depend only on Facade classes from `app.business`.
 """
 
+import logging
+
 from fastapi import FastAPI
 
 from app.core.config import settings
 from app.presentation.routers import analytics, goals, oasis, transactions
 from fastapi.middleware.cors import CORSMiddleware
+
+# Ensures the `logger.exception(...)` calls added to the routers (which log
+# the real, detailed error server-side while the client only ever sees a
+# generic, safe message) actually produce readable, timestamped output in
+# Render's log viewer instead of relying on Python's bare default handler.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 app = FastAPI(
     title=settings.APP_NAME,

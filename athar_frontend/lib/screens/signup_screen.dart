@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import '../services/auth_service.dart';
+import '../core/auth_error_mapper.dart';
 import 'login_screen.dart';
 import 'main_navigation_screen.dart';
 
@@ -25,13 +26,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool agreedToTerms = false;
   bool agreedToDataLink = false;
 
+  // Mirrors Supabase's default minimum password length. Checking this
+  // client-side gives instant Arabic feedback instead of a round trip to
+  // the server just to learn the password was too short.
+  static const int _minPasswordLength = 6;
+
   bool get canSubmit => agreedToTerms && agreedToDataLink && !isLoading;
 
   Future<void> _submit() async {
     if (!canSubmit) return;
+
+    if (passwordController.text.length < _minPasswordLength) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('كلمة المرور يجب أن تكون 6 أحرف على الأقل')),
+      );
+      return;
+    }
+
     setState(() => isLoading = true);
     try {
-      await _authService.signUp(
+      final response = await _authService.signUp(
         email: emailController.text.trim(),
         password: passwordController.text,
         metadata: {
@@ -41,14 +55,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
         },
       );
       if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
-        (route) => false,
-      );
+
+      // Supabase only returns a session here if the project's "Confirm
+      // email" setting is OFF. If it's ON, signUp() succeeds but the user
+      // isn't actually authenticated yet -- pushing them into
+      // MainNavigationScreen in that case would drop them into a broken,
+      // half-signed-in state. Route them to Login instead with a clear
+      // explanation.
+      if (response.session != null) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم إنشاء الحساب بنجاح، يمكنك تسجيل الدخول الآن')),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذّر إنشاء الحساب: $e')));
+      final message = friendlyAuthErrorMessage(e, fallback: 'تعذّر إنشاء الحساب، حاول مرة أخرى');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }

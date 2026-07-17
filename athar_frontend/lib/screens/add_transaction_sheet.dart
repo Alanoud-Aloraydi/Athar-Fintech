@@ -71,7 +71,7 @@ Future<TransactionResult?> showAddTransactionSheet(BuildContext context, {requir
                 } on ApiException catch (e) {
                   setState(() => isSubmitting = false);
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.arabicMessage)));
                   }
                 }
               },

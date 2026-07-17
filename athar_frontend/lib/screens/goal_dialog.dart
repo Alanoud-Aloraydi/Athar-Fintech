@@ -5,8 +5,9 @@ import '../services/api_service.dart';
 import '../widgets/common_widgets.dart';
 
 /// Returns the created [Goal] on success, or null if cancelled.
-/// Surfaces the backend's 409 Conflict message verbatim if the user already
-/// has an ACTIVE goal (create_goal is rejected server-side, not client-side).
+/// Shows a safe, Arabic message if the user already has an ACTIVE goal
+/// (create_goal is rejected server-side with 409, not client-side) --
+/// see [ApiExceptionArabic] in api_service.dart for the mapping.
 Future<Goal?> showCreateGoalDialog(BuildContext context, {required String userId}) {
   final titleController = TextEditingController();
   final amountController = TextEditingController();
@@ -61,7 +62,7 @@ Future<Goal?> showCreateGoalDialog(BuildContext context, {required String userId
                     } on ApiException catch (e) {
                       setState(() => isSubmitting = false);
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.arabicMessage)));
                       }
                     }
                   },

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/app_settings.dart';
 import '../core/strings.dart';
+import '../core/auth_error_mapper.dart';
 import '../services/auth_service.dart';
 import '../widgets/common_widgets.dart';
 
@@ -70,10 +71,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('saved_success'))));
       Navigator.pop(context);
-    } on AuthException catch (e) {
-      setState(() => errorMsg = e.message);
     } catch (e) {
-      setState(() => errorMsg = e.toString());
+      setState(() => errorMsg = friendlyAuthErrorMessage(e, fallback: 'تعذّر حفظ التعديلات، حاول مرة أخرى'));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }

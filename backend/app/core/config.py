@@ -39,6 +39,16 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_KEY: str = Field(
         ..., description="Supabase service_role secret key (server-side only)"
     )
+    SUPABASE_JWT_SECRET: str = Field(
+        ...,
+        description=(
+            "Supabase project's JWT Secret (Project Settings -> API -> JWT "
+            "Settings -> JWT Secret). Used to verify the access token the "
+            "Flutter client sends on every request, so the backend can "
+            "confirm the caller actually owns the user_id it's asking for "
+            "instead of trusting the URL/body blindly."
+        ),
+    )
 
     # --- CORS ---
     CORS_ORIGINS: list[str] = Field(
