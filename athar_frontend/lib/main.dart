@@ -24,6 +24,9 @@ Future<void> main() async {
     }
   }
 
+  // ignore: avoid_print
+  print('Supabase initialized: $_supabaseReady');
+
   runApp(const AtharApp());
 }
 

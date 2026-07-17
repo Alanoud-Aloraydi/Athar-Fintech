@@ -2,19 +2,16 @@
 <!--
   Athar Palm Oasis — Spline scene host page.
 
-  Loaded into a Flutter WebView (see lib/widgets/palm_oasis_viewer.dart) via
-  `WebViewController.loadFlutterAsset`. Uses the official Spline runtime
-  (@splinetool/runtime, which is Three.js-based and generated directly by
-  Spline for the exported scene) rather than an <iframe> embed, so we get
-  direct object access for `getObjectByName('Palm_0X').visible = ...`.
+  Loaded in two ways depending on platform:
+    • Flutter Web  → inside an <iframe> via HtmlElementView.
+                     Commands arrive via window.addEventListener('message').
+                     Events are sent back via window.parent.postMessage.
+    • Flutter Native → inside a WebViewWidget.
+                     Commands arrive via window.setVisiblePalmCount() (JS eval).
+                     Events are sent back via the OasisBridge JS channel.
 
-  Contract with Flutter (see palm_oasis_viewer.dart):
-    - Flutter calls `window.setVisiblePalmCount(n)` after the scene loads
-      to show Palm_01..Palm_0n and hide the rest.
-    - This page posts JSON strings to the `OasisBridge` JavaScript channel
-      for lifecycle events: {"event":"ready"} once the scene has loaded
-      and the initial palm count has been applied, or
-      {"event":"error","message":"..."} if loading fails.
+  Either way, `window.setVisiblePalmCount(n)` works the same: shows
+  Palm_01..Palm_0n and hides the rest (all 12 palms live in the scene).
 -->
 <html lang="ar" dir="rtl">
 <head>
@@ -55,63 +52,66 @@
   <script type="module">
     import { Application } from 'https://unpkg.com/@splinetool/runtime@1.9.48/build/runtime.js';
 
-    // Scene link supplied by the designer — full Three.js runtime project
-    // exported directly from Spline. All 12 palms exist in the scene,
-    // named "Palm_01".."Palm_12" in order; all but the first one or two
-    // ship with Visible = Off, and get toggled on here as the user's
-    // Oasis grows.
-    const SCENE_URL = 'https://prod.spline.design/oa7Ns7PvmCdHvQCP/scene.splinecode';
+    const SCENE_URL  = 'https://prod.spline.design/oa7Ns7PvmCdHvQCP/scene.splinecode';
     const TOTAL_PALMS = 12;
 
-    const canvas = document.getElementById('oasis-canvas');
+    const canvas    = document.getElementById('oasis-canvas');
     const loadingEl = document.getElementById('oasis-loading');
-    const app = new Application(canvas);
+    const app       = new Application(canvas);
 
-    // Deliberately NOT findObjectByName / setVariable — per the scene's
-    // authoring notes, only getObjectByName + direct `.visible` writes
-    // are reliable for this export.
-    function palmName(index) {
-      return 'Palm_' + String(index).padStart(2, '0');
-    }
-
+    // ── Outbound: send lifecycle events to Flutter ────────────────────────
+    // Tries both transports; only one will be active at runtime.
     function postToFlutter(payload) {
+      // Flutter Web path — iframe parent window
+      try { window.parent.postMessage(payload, '*'); } catch (_) {}
+      // Flutter Native path — WebView JS channel
       try {
         if (window.OasisBridge && window.OasisBridge.postMessage) {
           window.OasisBridge.postMessage(JSON.stringify(payload));
         }
-      } catch (_err) {
-        // No bridge available (e.g. previewing this file directly in a
-        // desktop browser during design work) — safe to ignore.
-      }
+      } catch (_) {}
     }
 
-    // Exposed to Flutter via WebViewController.runJavaScript. Clamps to
-    // [1, 12] defensively so a bad value from the client can never leave
-    // every palm hidden or try to reveal a Palm_13 that doesn't exist.
+    // ── Palm visibility ───────────────────────────────────────────────────
+    function palmName(i) {
+      return 'Palm_' + String(i).padStart(2, '0');
+    }
+
     window.setVisiblePalmCount = function (count) {
       const target = Math.max(1, Math.min(TOTAL_PALMS, Math.round(count)));
       for (let i = 1; i <= TOTAL_PALMS; i++) {
         const palm = app.getObjectByName(palmName(i));
-        if (palm) {
-          palm.visible = i <= target;
-        }
+        if (palm) palm.visible = (i <= target);
       }
       return target;
     };
 
+    // ── Inbound: receive commands from Flutter Web via postMessage ────────
+    // (Flutter Native drives the scene by calling window.setVisiblePalmCount
+    //  directly via WebViewController.runJavaScript — no listener needed.)
+    window.addEventListener('message', (e) => {
+      try {
+        const data = (typeof e.data === 'string') ? JSON.parse(e.data) : e.data;
+        if (data && data.cmd === 'setVisiblePalmCount') {
+          window.setVisiblePalmCount(data.count);
+        }
+      } catch (_) {}
+    });
+
+    // ── Load scene ────────────────────────────────────────────────────────
     app
       .load(SCENE_URL)
       .then(() => {
         loadingEl.style.display = 'none';
-        // Start every palm hidden except the seed palm; Flutter will call
-        // setVisiblePalmCount(realCount) right after this resolves with
-        // the user's actual growth-derived count.
-        window.setVisiblePalmCount(1);
+        window.setVisiblePalmCount(1); // seed palm; Flutter will override
         postToFlutter({ event: 'ready' });
       })
       .catch((err) => {
         loadingEl.textContent = 'تعذّر تحميل الواحة';
-        postToFlutter({ event: 'error', message: String(err && err.message ? err.message : err) });
+        postToFlutter({
+          event: 'error',
+          message: String(err && err.message ? err.message : err),
+        });
       });
   </script>
 </body>
