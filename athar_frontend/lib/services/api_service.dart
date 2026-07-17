@@ -1,6 +1,5 @@
-
-
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/env.dart';
@@ -70,7 +69,27 @@ String friendlyLoadErrorMessage(Object? error) {
 class ApiService {
   final String baseUrl;
 
-  ApiService({String? baseUrl}) : baseUrl = (baseUrl ?? Env.apiBaseUrl).replaceAll(RegExp(r'/+$'), '');
+  ApiService({String? baseUrl})
+      : baseUrl = (baseUrl ?? _defaultBaseUrl).replaceAll(RegExp(r'/+$'), '');
+
+  /// Detects the correct API base URL at runtime.
+  ///
+  /// On Flutter web (both Replit dev and production), the FastAPI backend is
+  /// served from the SAME origin as the Flutter app (same domain, same port).
+  /// Using [Uri.base] means the API calls always go to the right host without
+  /// needing API_BASE_URL baked in at build time — no hardcoded domains.
+  ///
+  /// On native (mobile / desktop), falls back to the dart-define value.
+  static String get _defaultBaseUrl {
+    if (kIsWeb) {
+      final uri = Uri.base;
+      final port = uri.hasPort && uri.port != 80 && uri.port != 443
+          ? ':${uri.port}'
+          : '';
+      return '${uri.scheme}://${uri.host}$port';
+    }
+    return Env.apiBaseUrl;
+  }
 
   /// Every request must prove who's calling -- the backend now verifies
   /// this token and rejects any request where it doesn't match the
@@ -246,5 +265,3 @@ class ApiService {
     throw ApiException(res.statusCode, message);
   }
 }
-
-
