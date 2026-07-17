@@ -54,6 +54,10 @@ Future<void> _pump(WidgetTester tester, FakeDashboardApi api) async {
 }
 
 void main() {
+  // DashboardScreen builds a DateFormat with the 'ar' locale; its symbol
+  // data must be loaded before the widget is constructed.
+  setUpAll(() => initializeDateFormatting('ar'));
+
   testWidgets('API error shows ErrorRetryView', (tester) async {
     final api = FakeDashboardApi()..fail = true;
     await _pump(tester, api);
