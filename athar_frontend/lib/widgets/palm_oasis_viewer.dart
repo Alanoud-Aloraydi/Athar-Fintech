@@ -95,7 +95,7 @@ class _PalmOasisViewerState extends State<PalmOasisViewer> {
 
   void _initWeb() {
     _viewId = 'oasis-iframe-$hashCode';
-    final impl = createOasisView(_viewId!, '/assets/oasis/oasis_viewer.html');
+    final impl = createOasisView(_viewId!, '/assets/assets/oasis/oasis_viewer.html');
     _webImpl = impl;
     _ctrl = PalmOasisController._web(impl);
     impl.onStateChange = () {

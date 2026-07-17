@@ -13,6 +13,7 @@ enabling Flutter's client-side router to work correctly.
 """
 
 import logging
+import mimetypes
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -159,7 +160,14 @@ if _FLUTTER_BUILD.exists():
             candidate = (_FLUTTER_BUILD / full_path).resolve()
             candidate.relative_to(_FLUTTER_BUILD_RESOLVED)  # raises ValueError on traversal
             if candidate.is_file():
-                return FileResponse(candidate)
+                # Explicit media type: FastAPI's response_class default would
+                # otherwise stamp application/json on these files, which breaks
+                # strict MIME checks (e.g. <script type="module"> imports).
+                media_type, _ = mimetypes.guess_type(str(candidate))
+                return FileResponse(
+                    candidate,
+                    media_type=media_type or "application/octet-stream",
+                )
         except ValueError:
             pass
         return FileResponse(_FLUTTER_BUILD / "index.html")
