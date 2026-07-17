@@ -7,9 +7,23 @@ import 'screens/welcome_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/quick_login_screen.dart';
 
+/// Whether Supabase initialised successfully.
+/// False when credentials are missing (e.g. running on Replit without secrets).
+bool _supabaseReady = false;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Supabase.initialize(url: Env.supabaseUrl, anonKey: Env.supabaseAnonKey);
+
+  if (Env.supabaseUrl.isNotEmpty && Env.supabaseAnonKey.isNotEmpty) {
+    try {
+      await Supabase.initialize(url: Env.supabaseUrl, anonKey: Env.supabaseAnonKey);
+      _supabaseReady = true;
+    } catch (e) {
+      // Credentials supplied but invalid — app will show error screen.
+      debugPrint('Supabase init failed: $e');
+    }
+  }
+
   runApp(const AtharApp());
 }
 
@@ -79,6 +93,55 @@ class AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Supabase credentials not configured — show a setup prompt instead of
+    // crashing. Set SUPABASE_URL and SUPABASE_ANON_KEY as Replit Secrets.
+    if (!_supabaseReady) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0D1B2A),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('🌴', style: TextStyle(fontSize: 56)),
+                const SizedBox(height: 20),
+                const Text(
+                  'أَثَر — Athar',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Backend is running ✓\nAdd your Supabase credentials to enable auth & data.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.5),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Required Replit Secrets:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      SizedBox(height: 8),
+                      Text('• SUPABASE_URL', style: TextStyle(color: Colors.greenAccent, fontFamily: 'monospace')),
+                      Text('• SUPABASE_ANON_KEY', style: TextStyle(color: Colors.greenAccent, fontFamily: 'monospace')),
+                      Text('• SUPABASE_SERVICE_KEY', style: TextStyle(color: Colors.greenAccent, fontFamily: 'monospace')),
+                      Text('• SUPABASE_JWT_SECRET', style: TextStyle(color: Colors.greenAccent, fontFamily: 'monospace')),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final session = Supabase.instance.client.auth.currentSession;
     if (session == null) return const WelcomeScreen();
 

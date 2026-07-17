@@ -29,7 +29,7 @@ Future<Goal?> showCreateGoalDialog(BuildContext context, {required String userId
               AppTextField(controller: amountController, label: 'المبلغ المستهدف', icon: Icons.savings_rounded, keyboardType: TextInputType.number),
               const SizedBox(height: 14),
               DropdownButtonFormField<AppCategory>(
-                initialValue: selectedCategory,
+                value: selectedCategory,
                 decoration: const InputDecoration(labelText: 'التصنيف'),
                 items: AppCategory.values
                     .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))

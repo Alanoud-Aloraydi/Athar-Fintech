@@ -11,6 +11,7 @@ from pathlib import Path
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Optional
 
 # Resolve .env relative to this file (backend/app/core/config.py -> backend/.env)
 # rather than relative to the process's current working directory. This is
@@ -35,18 +36,19 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = Field(default="development")
 
     # --- Supabase ---
-    SUPABASE_URL: str = Field(..., description="Supabase project URL")
-    SUPABASE_SERVICE_KEY: str = Field(
-        ..., description="Supabase service_role secret key (server-side only)"
+    # Optional so the server can start without credentials configured.
+    # Endpoints that use the database will raise a clear RuntimeError when
+    # called without these values set. Set them as Replit Secrets.
+    SUPABASE_URL: Optional[str] = Field(default=None, description="Supabase project URL")
+    SUPABASE_SERVICE_KEY: Optional[str] = Field(
+        default=None, description="Supabase service_role secret key (server-side only)"
     )
-    SUPABASE_JWT_SECRET: str = Field(
-        ...,
+    SUPABASE_JWT_SECRET: Optional[str] = Field(
+        default=None,
         description=(
             "Supabase project's JWT Secret (Project Settings -> API -> JWT "
             "Settings -> JWT Secret). Used to verify the access token the "
-            "Flutter client sends on every request, so the backend can "
-            "confirm the caller actually owns the user_id it's asking for "
-            "instead of trusting the URL/body blindly."
+            "Flutter client sends on every request."
         ),
     )
 

@@ -24,11 +24,25 @@ def get_supabase_client() -> Client:
     `lru_cache` guarantees the client (and its underlying HTTP connection
     pool) is constructed exactly once per process and reused across every
     repository that depends on it.
+
+    Raises RuntimeError if Supabase credentials are not configured — set
+    SUPABASE_URL and SUPABASE_SERVICE_KEY as Replit Secrets before using
+    any database-backed endpoint.
     """
+    if not settings.SUPABASE_URL or not settings.SUPABASE_SERVICE_KEY:
+        raise RuntimeError(
+            "Supabase credentials are not configured. "
+            "Set SUPABASE_URL and SUPABASE_SERVICE_KEY as Replit Secrets "
+            "and restart the workflow."
+        )
     return create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY)
 
 
-# Module-level singleton for direct imports (e.g. `from app.core.supabase_client import supabase`)
-supabase: Client = get_supabase_client()
+# Lazy accessor — do NOT call get_supabase_client() at module level.
+# Import and call get_supabase_client() only inside request handlers or
+# repository methods so the server can start without Supabase credentials.
+def get_supabase() -> Client:
+    """Convenience alias; raises RuntimeError if credentials are missing."""
+    return get_supabase_client()
 
 
