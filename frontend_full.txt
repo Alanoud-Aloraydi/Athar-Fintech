@@ -408,6 +408,76 @@ class _SettingsScopeState extends State<SettingsScope> {
 }
 
 
+--- File: C:\Athar-Fintech-main\athar_frontend\lib\core\auth_error_mapper.dart ---
+
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// Converts any error thrown during a Supabase auth call (sign up, sign in,
+/// update user, ...) into a safe, Arabic, user-facing message.
+///
+/// IMPORTANT: this NEVER returns the raw exception text (`e.toString()`),
+/// the exception class name, the HTTP status code, or the internal Supabase
+/// error `code`. Showing that raw text to the user (e.g.
+/// "AuthApiException(message: Invalid API key, statusCode: 401, code: null)")
+/// leaks implementation details that are useless to a normal user and
+/// potentially useful to an attacker probing the app.
+///
+/// The raw error is still logged via [debugPrint] so it's visible in the
+/// developer console / `flutter logs` during development, just never shown
+/// inside the UI.
+String friendlyAuthErrorMessage(Object error, {String? fallback}) {
+  // Always log the real error for debugging -- this only prints to the
+  // local dev console / CI logs, it is never rendered in the app UI.
+  debugPrint('Auth error: $error');
+
+  if (error is AuthException) {
+    final msg = error.message.toLowerCase();
+
+    if (msg.contains('invalid login credentials') ||
+        msg.contains('invalid_credentials')) {
+      return 'ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ ط£ظˆ ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ط؛ظٹط± طµط­ظٹط­ط©';
+    }
+
+    if (msg.contains('already registered') ||
+        msg.contains('already exists') ||
+        msg.contains('user_already_exists')) {
+      return 'ظ‡ط°ط§ ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ ظ…ط³ط¬ظ‘ظ„ ظ…ط³ط¨ظ‚ط§ظ‹طŒ ط¬ط±ظ‘ط¨ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط¨ط¯ظ„ط§ظ‹ ظ…ظ† ط°ظ„ظƒ';
+    }
+
+    if (msg.contains('password should be at least') ||
+        (msg.contains('password') && msg.contains('character'))) {
+      return 'ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ظٹط¬ط¨ ط£ظ† طھظƒظˆظ† 6 ط£ط­ط±ظپ ط¹ظ„ظ‰ ط§ظ„ط£ظ‚ظ„';
+    }
+
+    if (msg.contains('unable to validate email') ||
+        msg.contains('invalid email') ||
+        msg.contains('is invalid')) {
+      return 'طµظٹط؛ط© ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ ط؛ظٹط± طµط­ظٹط­ط©';
+    }
+
+    if (msg.contains('email not confirmed') ||
+        msg.contains('email_not_confirmed')) {
+      return 'ظٹط¬ط¨ طھظپط¹ظٹظ„ ط¨ط±ظٹط¯ظƒ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ ط£ظˆظ„ط§ظ‹ ظ‚ط¨ظ„ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„';
+    }
+
+    if (msg.contains('rate limit') || msg.contains('too many requests')) {
+      return 'ظ…ط­ط§ظˆظ„ط§طھ ظƒط«ظٹط±ط© ط¬ط¯ط§ظ‹طŒ ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰ ط¨ط¹ط¯ ظ‚ظ„ظٹظ„';
+    }
+
+    if (msg.contains('invalid api key') ||
+        msg.contains('network') ||
+        msg.contains('failed host lookup') ||
+        msg.contains('connection')) {
+      return 'طھط¹ط°ظ‘ط± ط§ظ„ط§طھطµط§ظ„ ط¨ط§ظ„ط®ط§ط¯ظ…طŒ طھط­ظ‚ظ‘ظ‚ ظ…ظ† ط§طھطµط§ظ„ظƒ ط¨ط§ظ„ط¥ظ†طھط±ظ†طھ ظˆط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰';
+    }
+  }
+
+  // Unknown / unexpected error shape -- never surface it raw.
+  return fallback ?? 'ط­ط¯ط« ط®ط·ط£ ط؛ظٹط± ظ…طھظˆظ‚ط¹طŒ ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰';
+}
+
+
 --- File: C:\Athar-Fintech-main\athar_frontend\lib\core\strings.dart ---
 
 import 'app_settings.dart';
@@ -976,7 +1046,7 @@ Future<TransactionResult?> showAddTransactionSheet(BuildContext context, {requir
                 } on ApiException catch (e) {
                   setState(() => isSubmitting = false);
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.arabicMessage)));
                   }
                 }
               },
@@ -1253,6 +1323,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/app_settings.dart';
 import '../core/strings.dart';
+import '../core/auth_error_mapper.dart';
 import '../services/auth_service.dart';
 import '../widgets/common_widgets.dart';
 
@@ -1321,10 +1392,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('saved_success'))));
       Navigator.pop(context);
-    } on AuthException catch (e) {
-      setState(() => errorMsg = e.message);
     } catch (e) {
-      setState(() => errorMsg = e.toString());
+      setState(() => errorMsg = friendlyAuthErrorMessage(e, fallback: 'طھط¹ط°ظ‘ط± ط­ظپط¸ ط§ظ„طھط¹ط¯ظٹظ„ط§طھطŒ ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰'));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -1555,8 +1624,9 @@ import '../services/api_service.dart';
 import '../widgets/common_widgets.dart';
 
 /// Returns the created [Goal] on success, or null if cancelled.
-/// Surfaces the backend's 409 Conflict message verbatim if the user already
-/// has an ACTIVE goal (create_goal is rejected server-side, not client-side).
+/// Shows a safe, Arabic message if the user already has an ACTIVE goal
+/// (create_goal is rejected server-side with 409, not client-side) --
+/// see [ApiExceptionArabic] in api_service.dart for the mapping.
 Future<Goal?> showCreateGoalDialog(BuildContext context, {required String userId}) {
   final titleController = TextEditingController();
   final amountController = TextEditingController();
@@ -1611,7 +1681,7 @@ Future<Goal?> showCreateGoalDialog(BuildContext context, {required String userId
                     } on ApiException catch (e) {
                       setState(() => isSubmitting = false);
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.arabicMessage)));
                       }
                     }
                   },
@@ -1632,6 +1702,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import '../services/auth_service.dart';
+import '../core/auth_error_mapper.dart';
 import 'signup_screen.dart';
 import 'main_navigation_screen.dart';
 
@@ -1660,7 +1731,8 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('طھط¹ط°ظ‘ط± طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„: $e')));
+      final message = friendlyAuthErrorMessage(e, fallback: 'طھط¹ط°ظ‘ط± طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„طŒ ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -2318,6 +2390,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import '../services/auth_service.dart';
+import '../core/auth_error_mapper.dart';
 import 'login_screen.dart';
 import 'main_navigation_screen.dart';
 
@@ -2341,13 +2414,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool agreedToTerms = false;
   bool agreedToDataLink = false;
 
+  // Mirrors Supabase's default minimum password length. Checking this
+  // client-side gives instant Arabic feedback instead of a round trip to
+  // the server just to learn the password was too short.
+  static const int _minPasswordLength = 6;
+
   bool get canSubmit => agreedToTerms && agreedToDataLink && !isLoading;
 
   Future<void> _submit() async {
     if (!canSubmit) return;
+
+    if (passwordController.text.length < _minPasswordLength) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ظٹط¬ط¨ ط£ظ† طھظƒظˆظ† 6 ط£ط­ط±ظپ ط¹ظ„ظ‰ ط§ظ„ط£ظ‚ظ„')),
+      );
+      return;
+    }
+
     setState(() => isLoading = true);
     try {
-      await _authService.signUp(
+      final response = await _authService.signUp(
         email: emailController.text.trim(),
         password: passwordController.text,
         metadata: {
@@ -2357,14 +2443,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
         },
       );
       if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
-        (route) => false,
-      );
+
+      // Supabase only returns a session here if the project's "Confirm
+      // email" setting is OFF. If it's ON, signUp() succeeds but the user
+      // isn't actually authenticated yet -- pushing them into
+      // MainNavigationScreen in that case would drop them into a broken,
+      // half-signed-in state. Route them to Login instead with a clear
+      // explanation.
+      if (response.session != null) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('طھظ… ط¥ظ†ط´ط§ط، ط§ظ„ط­ط³ط§ط¨ ط¨ظ†ط¬ط§ط­طŒ ظٹظ…ظƒظ†ظƒ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط§ظ„ط¢ظ†')),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('طھط¹ط°ظ‘ط± ط¥ظ†ط´ط§ط، ط§ظ„ط­ط³ط§ط¨: $e')));
+      final message = friendlyAuthErrorMessage(e, fallback: 'طھط¹ط°ظ‘ط± ط¥ظ†ط´ط§ط، ط§ظ„ط­ط³ط§ط¨طŒ ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -2504,12 +2608,17 @@ class WelcomeScreen extends StatelessWidget {
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/env.dart';
 import '../models/models.dart';
 
 /// Thrown for any non-2xx response. Carries the HTTP status code plus the
 /// backend's `detail` message (FastAPI's HTTPException shape) so screens can
 /// distinguish, e.g., 409 goal conflicts from 502 upstream failures.
+///
+/// `message` mirrors the backend's raw (English, technical) detail text and
+/// is kept only for logs/debugging -- UI code should use [arabicMessage]
+/// instead of [message] so users always see a safe, Arabic message.
 class ApiException implements Exception {
   final int statusCode;
   final String message;
@@ -2517,6 +2626,36 @@ class ApiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// Safe, Arabic, user-facing messages for [ApiException]. Never surfaces the
+/// backend's raw `detail` text -- only a small set of known, deliberately
+/// generic messages keyed by HTTP status code.
+extension ApiExceptionArabic on ApiException {
+  String get arabicMessage {
+    switch (statusCode) {
+      case 401:
+        return 'ط§ظ†طھظ‡طھ طµظ„ط§ط­ظٹط© ط§ظ„ط¬ظ„ط³ط©طŒ ظٹط±ط¬ظ‰ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰';
+      case 403:
+        return 'ظ„ط§ طھظ…ظ„ظƒ طµظ„ط§ط­ظٹط© ط§ظ„ظˆطµظˆظ„ ظ„ظ‡ط°ط§ ط§ظ„ط¹ظ†طµط±';
+      case 404:
+        return 'ط§ظ„ط¹ظ†طµط± ط§ظ„ظ…ط·ظ„ظˆط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯';
+      case 409:
+        // The only 409 today is "you already have an active goal" -- this
+        // is a real, useful business rule, not leaked internals.
+        return 'ظ„ط¯ظٹظƒ ظ‡ط¯ظپ ظ…ط§ظ„ظٹ ظ†ط´ط· ط¨ط§ظ„ظپط¹ظ„طŒ ظٹط¬ط¨ ط¥ظƒظ…ط§ظ„ظ‡ ط£ظˆ ط£ط±ط´ظپطھظ‡ ظ‚ط¨ظ„ ط¥ظ†ط´ط§ط، ظ‡ط¯ظپ ط¬ط¯ظٹط¯';
+      case 502:
+      case 503:
+        return 'طھط¹ط°ظ‘ط± ط§ظ„ط§طھطµط§ظ„ ط¨ط§ظ„ط®ط§ط¯ظ… ط­ط§ظ„ظٹط§ظ‹طŒ ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰ ط¨ط¹ط¯ ظ‚ظ„ظٹظ„';
+      case 500:
+        return 'ط­ط¯ط« ط®ط·ط£ ط؛ظٹط± ظ…طھظˆظ‚ط¹ ظپظٹ ط§ظ„ط®ط§ط¯ظ…طŒ ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰';
+      case 400:
+      case 422:
+        return 'ظٹط±ط¬ظ‰ ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط¯ط®ظ„ط© ظˆط§ظ„ظ…ط­ط§ظˆظ„ط© ظ…ط±ط© ط£ط®ط±ظ‰';
+      default:
+        return 'ط­ط¯ط« ط®ط·ط£ ط؛ظٹط± ظ…طھظˆظ‚ط¹طŒ ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰';
+    }
+  }
 }
 
 /// Talks to the Athar FastAPI backend. All endpoint paths, request/response
@@ -2528,13 +2667,29 @@ class ApiService {
 
   ApiService({String? baseUrl}) : baseUrl = (baseUrl ?? Env.apiBaseUrl).replaceAll(RegExp(r'/+$'), '');
 
-  Map<String, String> get _jsonHeaders => const {'Content-Type': 'application/json'};
+  /// Every request must prove who's calling -- the backend now verifies
+  /// this token and rejects any request where it doesn't match the
+  /// user_id being accessed (see `app/presentation/auth.py`). Without
+  /// this header, every call below will get a 401 from the backend.
+  Map<String, String> get _authHeaders {
+    final accessToken = Supabase.instance.client.auth.currentSession?.accessToken;
+    if (accessToken == null) {
+      // Should not normally happen -- every screen that calls ApiService
+      // is behind AuthGate -- but fail loudly rather than silently
+      // sending an unauthenticated request.
+      throw ApiException(401, 'Not authenticated.');
+    }
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $accessToken',
+    };
+  }
 
   // --- Analytics -----------------------------------------------------------
 
   /// GET /analytics/{user_id} -> DashboardSummaryDTO
   Future<DashboardSummary> getDashboardSummary(String userId) async {
-    final res = await http.get(Uri.parse('$baseUrl/analytics/$userId'));
+    final res = await http.get(Uri.parse('$baseUrl/analytics/$userId'), headers: _authHeaders);
     _checkStatus(res);
     return DashboardSummary.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
@@ -2543,7 +2698,7 @@ class ApiService {
 
   /// GET /oasis/{user_id} -> OasisStateDTO
   Future<OasisState> getOasisState(String userId) async {
-    final res = await http.get(Uri.parse('$baseUrl/oasis/$userId'));
+    final res = await http.get(Uri.parse('$baseUrl/oasis/$userId'), headers: _authHeaders);
     _checkStatus(res);
     return OasisState.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
@@ -2552,7 +2707,7 @@ class ApiService {
 
   /// GET /goals/{user_id}/active -> GoalResponseDTO | null
   Future<Goal?> getActiveGoal(String userId) async {
-    final res = await http.get(Uri.parse('$baseUrl/goals/$userId/active'));
+    final res = await http.get(Uri.parse('$baseUrl/goals/$userId/active'), headers: _authHeaders);
     _checkStatus(res);
     if (res.body.trim() == 'null' || res.body.trim().isEmpty) return null;
     return Goal.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -2568,7 +2723,7 @@ class ApiService {
   }) async {
     final res = await http.post(
       Uri.parse('$baseUrl/goals/$userId'),
-      headers: _jsonHeaders,
+      headers: _authHeaders,
       body: jsonEncode({
         'title': title,
         'target_amount': targetAmount,
@@ -2589,7 +2744,7 @@ class ApiService {
   }) async {
     final res = await http.patch(
       Uri.parse('$baseUrl/goals/$userId/$goalId/status'),
-      headers: _jsonHeaders,
+      headers: _authHeaders,
       body: jsonEncode({'status': newStatus}),
     );
     _checkStatus(res);
@@ -2613,7 +2768,7 @@ class ApiService {
   }) async {
     final res = await http.post(
       Uri.parse('$baseUrl/transactions/'),
-      headers: _jsonHeaders,
+      headers: _authHeaders,
       body: jsonEncode({
         'user_id': userId,
         'amount': amount,

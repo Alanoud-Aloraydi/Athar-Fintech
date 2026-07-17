@@ -18,6 +18,24 @@ class QuickLoginScreen extends StatefulWidget {
   final QuickLoginMode mode;
   const QuickLoginScreen({super.key, this.mode = QuickLoginMode.login});
 
+  /// True if the user has previously set up a quick-login PIN on this
+  /// device. AuthGate uses this to decide whether a valid Supabase session
+  /// should still be gated behind the PIN screen before reaching the app.
+  static Future<bool> hasQuickLoginCode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kQuickLoginCodeKey) != null;
+  }
+
+  /// Clears the stored PIN. Call this on full sign-out -- the PIN is a
+  /// device-local shortcut for whichever account is currently signed in;
+  /// leaving it behind after logout would let it silently unlock a
+  /// *different* account's session on the same device the next time
+  /// someone signs in (since the code isn't scoped per user).
+  static Future<void> clearQuickLoginCode() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kQuickLoginCodeKey);
+  }
+
   @override
   State<QuickLoginScreen> createState() => _QuickLoginScreenState();
 }

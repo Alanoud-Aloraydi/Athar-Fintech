@@ -50,6 +50,17 @@ extension ApiExceptionArabic on ApiException {
   }
 }
 
+/// For use in `FutureBuilder`/`snapshot.error` contexts. Unlike
+/// [ApiExceptionArabic.arabicMessage] (which only handles [ApiException]),
+/// `snapshot.error` can also be a raw Dart/network exception (timeouts,
+/// DNS failures, JSON parsing errors, ...) if the request never reached
+/// the backend at all -- those raw exception types are NOT safe to show
+/// verbatim either, so this always returns a safe Arabic string.
+String friendlyLoadErrorMessage(Object? error) {
+  if (error is ApiException) return error.arabicMessage;
+  return 'تعذّر الاتصال بالخادم، تحقّق من اتصالك بالإنترنت وحاول مرة أخرى';
+}
+
 /// Talks to the Athar FastAPI backend. All endpoint paths, request/response
 /// shapes, and aliases below are copied verbatim from the backend's
 /// Presentation-layer routers and schemas — the backend is the single

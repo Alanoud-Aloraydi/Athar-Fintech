@@ -68,7 +68,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             if (snapshot.hasError) {
               return ListView(children: [
                 const SizedBox(height: 80),
-                ErrorRetryView(message: 'تعذّر تحميل لوحة البيانات: ${snapshot.error}', onRetry: _refresh),
+                ErrorRetryView(message: friendlyLoadErrorMessage(snapshot.error), onRetry: _refresh),
               ]);
             }
 

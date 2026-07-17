@@ -5,6 +5,7 @@ import 'core/app_settings.dart';
 import 'theme/app_theme.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/main_navigation_screen.dart';
+import 'screens/quick_login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,16 +63,35 @@ class _AtharAppState extends State<AtharApp> {
   }
 }
 
-/// Routes to the dashboard if a Supabase session already exists (e.g. app
-/// relaunch with a persisted session), otherwise to the welcome/auth flow.
-/// Unchanged from the working version -- QuickLoginScreen sits ON TOP of
-/// this, it never replaces this check.
+/// Routes to:
+/// - WelcomeScreen, if there's no Supabase session at all (never signed in,
+///   or fully signed out).
+/// - QuickLoginScreen (PIN gate), if a Supabase session exists AND the user
+///   previously set up a quick-login PIN on this device -- this is the
+///   fast re-entry path (e.g. reopening the app after it was backgrounded
+///   or closed, session still valid) instead of dropping straight into the
+///   app with no local gate at all.
+/// - MainNavigationScreen directly, if a session exists but no PIN was ever
+///   set up (previous, simpler behavior is preserved for users who never
+///   opted into quick login).
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
     final session = Supabase.instance.client.auth.currentSession;
-    return session != null ? const MainNavigationScreen() : const WelcomeScreen();
+    if (session == null) return const WelcomeScreen();
+
+    return FutureBuilder<bool>(
+      future: QuickLoginScreen.hasQuickLoginCode(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        return snapshot.data!
+            ? const QuickLoginScreen(mode: QuickLoginMode.login)
+            : const MainNavigationScreen();
+      },
+    );
   }
 }

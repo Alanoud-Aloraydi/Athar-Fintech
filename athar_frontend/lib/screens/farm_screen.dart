@@ -84,7 +84,7 @@ class _FarmScreenState extends State<FarmScreen> {
             if (snapshot.hasError) {
               return ListView(children: [
                 const SizedBox(height: 80),
-                ErrorRetryView(message: 'تعذّر تحميل حالة المزرعة: ${snapshot.error}', onRetry: _refresh),
+                ErrorRetryView(message: friendlyLoadErrorMessage(snapshot.error), onRetry: _refresh),
               ]);
             }
 

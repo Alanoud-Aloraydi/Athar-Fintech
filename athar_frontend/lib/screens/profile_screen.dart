@@ -4,6 +4,7 @@ import '../widgets/common_widgets.dart';
 import '../services/auth_service.dart';
 import 'welcome_screen.dart';
 import 'settings_screen.dart';
+import 'quick_login_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final String userId;
@@ -66,6 +67,12 @@ class ProfileScreen extends StatelessWidget {
             SecondaryButton(
               text: 'تسجيل الخروج',
               onPressed: () async {
+                // Clear the device-local quick-login PIN *before* signing
+                // out of Supabase. The PIN isn't scoped to a specific
+                // account -- leaving it behind would let it silently grant
+                // access to whichever account signs in next on this same
+                // device, bypassing that account's own login entirely.
+                await QuickLoginScreen.clearQuickLoginCode();
                 await AuthService().signOut();
                 if (context.mounted) {
                   Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const WelcomeScreen()), (route) => false);
