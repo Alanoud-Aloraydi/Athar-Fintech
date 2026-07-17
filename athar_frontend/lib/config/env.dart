@@ -12,7 +12,7 @@ class Env {
   /// host-loopback address for local development.
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000',
+    defaultValue: 'https://athar-backend-s8tm.onrender.com',
   );
 
   /// Supabase project URL. Client-side auth ONLY — never the service key.
