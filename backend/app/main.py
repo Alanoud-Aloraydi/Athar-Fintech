@@ -77,7 +77,7 @@ async def add_security_headers(request: Request, call_next):
     # Spline runtime and scene are now local (same origin); no CDN needed.
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: "
         "https://www.gstatic.com; "
         "script-src-elem 'self' 'unsafe-inline' blob: "
         "https://www.gstatic.com; "
