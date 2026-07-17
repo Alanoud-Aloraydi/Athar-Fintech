@@ -9,14 +9,19 @@ import 'goal_dialog.dart';
 
 class FarmScreen extends StatefulWidget {
   final String userId;
-  const FarmScreen({super.key, required this.userId});
+
+  /// Injectable for widget tests; production callers omit it and get the
+  /// real [ApiService].
+  final ApiService? api;
+
+  const FarmScreen({super.key, required this.userId, this.api});
 
   @override
   State<FarmScreen> createState() => _FarmScreenState();
 }
 
 class _FarmScreenState extends State<FarmScreen> {
-  final _api = ApiService();
+  late final ApiService _api = widget.api ?? ApiService();
   late Future<OasisState> _oasisFuture;
   late Future<Goal?> _goalFuture;
 
@@ -216,7 +221,18 @@ class _FarmScreenState extends State<FarmScreen> {
                     child: Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator())),
                   );
                 }
-                final goal = snapshot.hasError ? null : snapshot.data;
+                if (snapshot.hasError) {
+                  // Don't silently pretend "no active goal" when the fetch
+                  // failed -- surface the error with a retry, same as the
+                  // Oasis section above.
+                  return SectionCard(
+                    child: ErrorRetryView(
+                      message: friendlyLoadErrorMessage(snapshot.error),
+                      onRetry: _refresh,
+                    ),
+                  );
+                }
+                final goal = snapshot.data;
                 return SectionCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

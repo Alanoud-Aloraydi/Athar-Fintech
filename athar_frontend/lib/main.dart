@@ -72,9 +72,8 @@ class _AtharAppState extends State<AtharApp> {
           ),
         );
       },
-      routes: {
-        '/': (context) => const AuthGate(),
-      },
+      // NOTE: no `routes: {'/': ...}` entry here — MaterialApp asserts if
+      // both `home` and a '/' route are defined (redundant).
       home: const AuthGate(),
     );
   }
