@@ -174,6 +174,15 @@ class AnalyticsFacade:
                 ),
             )
 
+        # Anomaly detection: compare the last 48 h of transactions against
+        # the full historical baseline using Z-Score (per-category μ, σ).
+        anomaly_since = datetime.now(timezone.utc) - timedelta(hours=48)
+        very_recent = self._transaction_repository.get_transactions_since(user_id, anomaly_since)
+        current_health = oasis_state.health_score if oasis_state else 100.0
+        anomalies = self._insights_engine.detect_anomalies(
+            all_transactions, very_recent, current_health
+        )
+
         trajectory_deviation, trajectory_delay_months = self._calculate_trajectory(active_goal)
         spending_volatility = self._calculate_volatility(recent_transactions)
         nudge_message = self._generate_nudge(
@@ -189,8 +198,9 @@ class AnalyticsFacade:
             active_goal=goal_progress,
             spending_by_category=breakdown,
             oasis_growth_score=oasis_state.growth_level if oasis_state else 0.0,
-            oasis_health_score=oasis_state.health_score if oasis_state else 100.0,
+            oasis_health_score=current_health,
             insights=insights,
+            anomalies=anomalies,
             trajectory_deviation=trajectory_deviation,
             trajectory_delay_months=trajectory_delay_months,
             spending_volatility=spending_volatility,

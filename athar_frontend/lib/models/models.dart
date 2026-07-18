@@ -145,7 +145,8 @@ class DashboardSummary {
   final double oasisHealthScore;
   final SmartInsights insights;
 
-  // Open Banking analytics fields (Trajectory & Volatility)
+  // Open Banking analytics fields (Anomalies, Trajectory & Volatility)
+  final List<String> anomalies;
   final double trajectoryDeviation;
   final double trajectoryDelayMonths;
   final double spendingVolatility;
@@ -162,6 +163,7 @@ class DashboardSummary {
     required this.oasisGrowthScore,
     required this.oasisHealthScore,
     required this.insights,
+    this.anomalies = const [],
     this.trajectoryDeviation = 0.0,
     this.trajectoryDelayMonths = 0.0,
     this.spendingVolatility = 0.0,
@@ -181,6 +183,7 @@ class DashboardSummary {
         oasisGrowthScore: _asDouble(json['oasis_growth_score']),
         oasisHealthScore: _asDouble(json['oasis_health_score']),
         insights: SmartInsights.fromJson(json['insights'] as Map<String, dynamic>),
+        anomalies: (json['anomalies'] as List<dynamic>?)?.cast<String>() ?? const [],
         trajectoryDeviation: (json['trajectory_deviation'] as num?)?.toDouble() ?? 0.0,
         trajectoryDelayMonths: (json['trajectory_delay_months'] as num?)?.toDouble() ?? 0.0,
         spendingVolatility: (json['spending_volatility'] as num?)?.toDouble() ?? 0.0,

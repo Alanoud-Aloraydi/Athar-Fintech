@@ -1,0 +1,24 @@
+Act as a Lead Data Scientist and FinTech Flutter Architect. I reviewed your last update. We must completely strictly enforce the "Zero Manual Entry" rule for our Open Banking vision, and upgrade our backend algorithm to include statistical Anomaly Detection. 
+
+Execute the following changes immediately:
+
+### 1. FRONTEND: Absolute Purge of Manual Entry (Flutter)
+- DELETE the Floating Action Button (FAB) or any "+" button from the Dashboard that leads to adding a transaction.
+- DELETE the manual `AddTransactionScreen` or any form that allows the user to input amounts, categories, or transaction types. 
+- The ONLY way data enters the app is through the "Sync with Alinma Wallet 🔄" button, which fetches from the mock API. 
+- Ensure the UI looks like a read-only, highly intelligent financial command center.
+
+### 2. BACKEND: Z-Score Anomaly Detection Algorithm (FastAPI)
+- Update the `InsightsEngine` to calculate the Z-Score for spending habits.
+- Logic: Group the user's past transactions by category (or merchant). Calculate the Mean (μ) and Standard Deviation (σ). 
+- When the `/sync_open_banking` endpoint generates new mock transactions, check if any expense has a Z-Score > 2.0 (Formula: Z = (X - μ) / σ).
+- If an anomaly is detected (e.g., spending 30 SAR on coffee when the average is 15 SAR), flag it.
+- Update `DashboardSummaryDTO` to include a new field: `anomalies: list[str]`. Example string: "⚠️ Unusual spending detected: 30 SAR at Starbucks (Category average is 15 SAR)."
+
+### 3. FRONTEND: "Anomaly Radar" in Dashboard (Flutter)
+- Update the Dashboard UI to consume the new `anomalies` list from the DTO.
+- If the list is NOT empty, display a highly visible "Financial Radar (الرادار المالي)" Card at the top (under the sync button).
+- The card should display the exact anomaly text, highlighting how it negatively impacted their Oasis health.
+- Make the dashboard purely analytical: Show the Wallet Balance, the Trajectory Deviation (Delay in months), and the Anomaly Radar. Remove any generic/useless data.
+
+Generate the exact corrected Python and Dart files to reflect this deep architectural pivot.

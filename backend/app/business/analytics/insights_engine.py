@@ -16,6 +16,8 @@ layer.
 
 from __future__ import annotations
 
+import statistics as _stats
+from collections import defaultdict
 from datetime import date, timedelta
 
 from app.presentation.schemas.analytics import SmartInsightsDTO
@@ -24,6 +26,14 @@ from app.presentation.schemas.analytics import SmartInsightsDTO
 # floor — otherwise "reach your goal in 47000 days" is more discouraging
 # than useful, so we omit the projection instead.
 _MIN_DAILY_SAVINGS_RATE_FOR_PROJECTION = 0.01
+
+# Z-Score threshold: a transaction is flagged as anomalous when its
+# per-category Z-Score exceeds this value.
+_ANOMALY_Z_THRESHOLD = 2.0
+
+# A category needs at least this many historical data points before
+# we trust its baseline statistics enough to run anomaly detection.
+_MIN_HISTORICAL_SAMPLES = 2
 
 
 class InsightsEngine:
@@ -120,3 +130,86 @@ class InsightsEngine:
         if has_projection:
             return "وتيرتك الحالية تضعك في متناول هدفك — واصل هكذا! 🎯"
         return "أوضاعك المالية مستقرة. الادخار المنتظم سيُسرّع تحقيق هدفك 🌱"
+
+    # ------------------------------------------------------------------
+    # Z-Score Anomaly Detection
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def detect_anomalies(
+        all_transactions: list,
+        recent_transactions: list,
+        oasis_health_score: float,
+    ) -> list[str]:
+        """
+        Privacy-first, offline Z-Score anomaly detector.
+
+        Algorithm
+        ---------
+        1. Build a per-category baseline (μ, σ) from *historical* EXPENSE
+           transactions — those NOT in ``recent_transactions``.
+        2. Score every recent EXPENSE:
+               Z = (X − μ) / σ
+        3. Flag transactions where Z > ``_ANOMALY_Z_THRESHOLD`` (default 2.0).
+
+        Categories with fewer than ``_MIN_HISTORICAL_SAMPLES`` data points
+        are skipped — their statistics are not reliable.  A near-zero σ
+        (< 0.01) is also skipped to avoid division-by-zero inflation.
+
+        Args:
+            all_transactions:    Every transaction stored for the user.
+                                 Used to build category baselines.
+            recent_transactions: The recently-synced batch to score against
+                                 those baselines.
+            oasis_health_score:  Appended to the anomaly string when the
+                                 user's Oasis health has already been
+                                 impacted (< 80 %).
+
+        Returns:
+            A (possibly empty) list of Arabic user-facing anomaly strings.
+        """
+        recent_ids: set = {getattr(t, "id", None) for t in recent_transactions}
+
+        # Historical baseline: past EXPENSE transactions not in this batch.
+        cat_amounts: dict[str, list[float]] = defaultdict(list)
+        for txn in all_transactions:
+            if txn.type != "EXPENSE":
+                continue
+            if getattr(txn, "id", None) in recent_ids:
+                continue
+            cat_amounts[str(txn.category)].append(txn.amount)
+
+        # Compute (μ, σ) per category — skip sparse / zero-variance categories.
+        cat_stats: dict[str, tuple[float, float]] = {}
+        for cat, amounts in cat_amounts.items():
+            if len(amounts) < _MIN_HISTORICAL_SAMPLES:
+                continue
+            mu = _stats.mean(amounts)
+            sigma = _stats.stdev(amounts)
+            if sigma < 0.01:
+                continue
+            cat_stats[cat] = (mu, sigma)
+
+        anomalies: list[str] = []
+        for txn in recent_transactions:
+            if txn.type != "EXPENSE":
+                continue
+            cat = str(txn.category)
+            if cat not in cat_stats:
+                continue
+            mu, sigma = cat_stats[cat]
+            z = (txn.amount - mu) / sigma
+            if z < _ANOMALY_Z_THRESHOLD:
+                continue
+
+            health_note = (
+                f" — صحة واحتك تأثرت: {oasis_health_score:.0f}٪ 🍂"
+                if oasis_health_score < 80
+                else ""
+            )
+            anomalies.append(
+                f"⚠️ إنفاق غير معتاد: {txn.amount:.0f} ريال في «{txn.description}» "
+                f"(متوسط الفئة {mu:.0f} ريال — درجة Z={z:.1f}){health_note}"
+            )
+
+        return anomalies

@@ -108,6 +108,13 @@ class DashboardSummaryDTO(BaseModel):
     insights: SmartInsightsDTO
 
     # --- Open Banking analytics (Trajectory & Volatility) ------------------
+    anomalies: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Z-Score anomaly flags generated from the most recent Open Banking sync. "
+            "Each entry is a user-facing Arabic string. Empty when no anomalies exist."
+        ),
+    )
     trajectory_deviation: float = Field(
         default=0.0,
         description=(
