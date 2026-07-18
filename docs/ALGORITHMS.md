@@ -1,7 +1,7 @@
 # Athar (أَثر) — Core Algorithms & Technical Architecture
 
 > **Audience:** Technical jury & senior reviewers  
-> **Version:** 1.0 · July 2025  
+> **Version:** 1.0 · July 2026  
 > **Stack:** FastAPI · PostgreSQL (Supabase) · Flutter Web · Spline 3D
 
 This document formally describes the five core intelligence systems that power Athar's financial engine. Each section covers the mathematical model, the business rationale, and the exact implementation decisions made during development.
@@ -161,7 +161,7 @@ The `health_score` (0–100) starts at a nominal value and is modified by spendi
 
 ```
 health_score += +2.0    for every SAVINGS category transaction
-health_score −= −5.0    for every flagged ENTERTAINMENT anomaly
+health_score −= 5.0    for every flagged ENTERTAINMENT anomaly
 health_score  = clamp(health_score, 0, 100)
 ```
 
