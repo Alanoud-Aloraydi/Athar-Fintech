@@ -142,74 +142,99 @@ class InsightsEngine:
         oasis_health_score: float,
     ) -> list[str]:
         """
-        Privacy-first, offline Z-Score anomaly detector.
+        Privacy-first, offline Z-Score anomaly detector — leave-one-out variant.
 
         Algorithm
         ---------
-        1. Build a per-category baseline (μ, σ) from *historical* EXPENSE
-           transactions — those NOT in ``recent_transactions``.
-        2. Score every recent EXPENSE:
-               Z = (X − μ) / σ
-        3. Flag transactions where Z > ``_ANOMALY_Z_THRESHOLD`` (default 2.0).
+        1. Pool ALL EXPENSE transactions per category from ``all_transactions``
+           as ``(id, amount, description)`` tuples.
+        2. For each recent EXPENSE transaction, build its **leave-one-out**
+           baseline: every other transaction in the same category
+           (i.e. all except the one being scored).
+        3. Compute Z = (X − μ) / σ against that per-transaction baseline.
+        4. Flag where Z > ``_ANOMALY_Z_THRESHOLD`` (default 2.0).
 
-        Categories with fewer than ``_MIN_HISTORICAL_SAMPLES`` data points
-        are skipped — their statistics are not reliable.  A near-zero σ
-        (< 0.01) is also skipped to avoid division-by-zero inflation.
+        Leave-one-out is critical for same-day first-sync accuracy: the
+        expensive outlier is never allowed to inflate the baseline mean that
+        is then used to score itself, so even when all transactions land
+        simultaneously a clear spike is detected immediately.
+
+        Categories with fewer than ``_MIN_HISTORICAL_SAMPLES`` *other*
+        transactions are skipped — statistics over 1 data-point are
+        meaningless.  A near-zero σ (< 0.01) is also skipped to avoid
+        degenerate division.
 
         Args:
-            all_transactions:    Every transaction stored for the user.
-                                 Used to build category baselines.
-            recent_transactions: The recently-synced batch to score against
-                                 those baselines.
-            oasis_health_score:  Appended to the anomaly string when the
-                                 user's Oasis health has already been
-                                 impacted (< 80 %).
+            all_transactions:    Every transaction stored for the user —
+                                 provides the complete category pool.
+            recent_transactions: The recently-synced batch to score.
+            oasis_health_score:  Included in the message when health < 80%.
 
         Returns:
-            A (possibly empty) list of Arabic user-facing anomaly strings.
+            A (possibly empty) list of human-readable Arabic anomaly strings.
         """
-        recent_ids: set = {getattr(t, "id", None) for t in recent_transactions}
-
-        # Historical baseline: past EXPENSE transactions not in this batch.
-        cat_amounts: dict[str, list[float]] = defaultdict(list)
+        # Pool all EXPENSE transactions per category.
+        cat_pool: dict[str, list[tuple]] = defaultdict(list)
         for txn in all_transactions:
             if txn.type != "EXPENSE":
                 continue
-            if getattr(txn, "id", None) in recent_ids:
-                continue
-            cat_amounts[str(txn.category)].append(txn.amount)
-
-        # Compute (μ, σ) per category — skip sparse / zero-variance categories.
-        cat_stats: dict[str, tuple[float, float]] = {}
-        for cat, amounts in cat_amounts.items():
-            if len(amounts) < _MIN_HISTORICAL_SAMPLES:
-                continue
-            mu = _stats.mean(amounts)
-            sigma = _stats.stdev(amounts)
-            if sigma < 0.01:
-                continue
-            cat_stats[cat] = (mu, sigma)
+            cat_pool[str(txn.category)].append(
+                (getattr(txn, "id", None), txn.amount, getattr(txn, "description", ""))
+            )
 
         anomalies: list[str] = []
         for txn in recent_transactions:
             if txn.type != "EXPENSE":
                 continue
+
             cat = str(txn.category)
-            if cat not in cat_stats:
-                continue
-            mu, sigma = cat_stats[cat]
+            txn_id = getattr(txn, "id", None)
+
+            # Leave-one-out: exclude this transaction from its own baseline.
+            others = [
+                amt
+                for tid, amt, _ in cat_pool.get(cat, [])
+                if tid != txn_id
+            ]
+
+            if len(others) < _MIN_HISTORICAL_SAMPLES:
+                continue  # Not enough history to trust the baseline.
+
+            mu = _stats.mean(others)
+            sigma = _stats.stdev(others)
+            if sigma < 0.01:
+                continue  # Near-zero variance → skip to avoid inflated Z.
+
             z = (txn.amount - mu) / sigma
             if z < _ANOMALY_Z_THRESHOLD:
                 continue
 
+            desc = getattr(txn, "description", "")
+            category_ar = InsightsEngine._category_label_ar(desc, cat)
             health_note = (
-                f" — صحة واحتك تأثرت: {oasis_health_score:.0f}٪ 🍂"
+                " هذا التذبذب يؤثر سلباً على صحة واحتك!"
                 if oasis_health_score < 80
                 else ""
             )
             anomalies.append(
-                f"⚠️ إنفاق غير معتاد: {txn.amount:.0f} ريال في «{txn.description}» "
-                f"(متوسط الفئة {mu:.0f} ريال — درجة Z={z:.1f}){health_note}"
+                f"⚠️ إنفاق غير معتاد: دفعت {txn.amount:.0f} ريال في ({desc}). "
+                f"هذا يتجاوز متوسط صرفك المعتاد على {category_ar} ({mu:.0f} ريال).{health_note}"
             )
 
         return anomalies
+
+    @staticmethod
+    def _category_label_ar(description: str, category: str) -> str:
+        """Map a transaction description + category to a natural Arabic label."""
+        desc_lower = description.lower()
+        if any(w in desc_lower for w in ("coffee", "cafe", "bunn", "قهوة", "كافيه")):
+            return "المقاهي"
+        if any(w in desc_lower for w in ("restaurant", "albaik", "مطعم", "food")):
+            return "المطاعم"
+        _MAP = {
+            "ENTERTAINMENT": "الترفيه والطعام",
+            "GROCERIES": "البقالة",
+            "UTILITIES": "الفواتير",
+            "SAVINGS": "الادخار",
+        }
+        return _MAP.get(category.upper(), "هذه الفئة")

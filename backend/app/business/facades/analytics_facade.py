@@ -271,35 +271,49 @@ class AnalyticsFacade:
         volatility: float,
         breakdown: list[CategoryBreakdownDTO],
     ) -> str:
-        _AR = {
-            "ENTERTAINMENT": "الترفيه",
-            "GROCERIES": "البقالة",
-            "UTILITIES": "الفواتير",
-            "SAVINGS": "الادخار",
+        """
+        Generates a professional, actionable Arabic advisory message.
+
+        Tone: Smart Advisor — encouraging, specific, never alarmist.
+        """
+        _CAT_AR = {
+            "ENTERTAINMENT": "الطعام والمقاهي",
+            "GROCERIES": "البقالة والتموين",
+            "UTILITIES": "الفواتير الشهرية",
         }
+        # Top non-savings spending category.
         top_cat_ar = ""
-        if breakdown:
-            top_cat_ar = _AR.get(breakdown[0].category.value.upper(), "")
+        for b in breakdown:
+            label = _CAT_AR.get(b.category.value.upper(), "")
+            if label:
+                top_cat_ar = label
+                break
 
         if deviation < -300:
             return (
-                f"تحذير: نخلتك عطشى! 🍂 أنت متأخر بـ {abs(deviation):.0f} ريال — "
-                "حوّل مبلغاً لمدخراتك الآن لإنقاذ واحتك"
+                "خطة الادخار تحتاج تدخلاً — حوّل 200 ريال إلى حساب "
+                "الإنماء هذا الأسبوع للعودة إلى المسار الصحيح 📊"
             )
         if volatility > 300:
-            cat_note = f" على {top_cat_ar}" if top_cat_ar else ""
+            cat_note = f" {top_cat_ar}" if top_cat_ar else ""
             return (
-                f"إنفاق مرتفع{cat_note} هذا الأسبوع! "
-                "وفّر 50 ريالاً اليوم لإنقاذ واحتك 🌿"
+                f"وفّر من ميزانية{cat_note} هذا الأسبوع، "
+                "وحوّل المبلغ مباشرةً للادخار لإنعاش واحتك 🌱"
             )
         if deviation < -100:
             return (
-                f"أنت متأخر عن هدفك بـ {abs(deviation):.0f} ريال — "
-                "بعض الادخار الإضافي يُعيدك للمسار 💪"
+                "خطة ادخارك تحتاج دفعة — حوّل ما وفرته من مصروفات "
+                "الطعام إلى حساب الإنماء لتعويض التأخر 💡"
             )
         if deviation > 100:
-            return f"رائع! أنت متقدم على الجدول بـ {deviation:.0f} ريال — واصل 🌟"
-        return "إنفاقك مستقر — الادخار المنتظم سيُسرّع تحقيق هدفك 🌱"
+            return (
+                f"أداؤك المالي ممتاز هذا الشهر! تقدمت بـ {deviation:.0f} ريال "
+                "عن الخطة — استمر وستحقق هدفك في وقت قياسي 🚀"
+            )
+        return (
+            "وفّر 100 ريال من ميزانية المطاعم هذا الأسبوع، "
+            "وحوّلها الآن للادخار لإنعاش واحتك 🌱"
+        )
 
     @staticmethod
     def _summarize_transactions(

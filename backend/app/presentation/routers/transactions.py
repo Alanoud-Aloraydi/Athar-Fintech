@@ -111,30 +111,67 @@ async def sync_open_banking(
 
     from datetime import date as _date
 
+    # ── Permanent baseline transactions ───────────────────────────────
+    # These use date-free idempotency keys so they are inserted exactly
+    # once ever (idempotency stops re-insertion on subsequent syncs).
+    # They seed the Z-Score baseline for the "coffee/café" sub-category
+    # of ENTERTAINMENT, establishing a known μ ≈ 16 SAR.
+    _BASELINE: list[dict] = [
+        {"description": "Half Million Coffee Shop", "amount": 14.0, "type": "EXPENSE", "key": "alinma_baseline_coffee_1"},
+        {"description": "Half Million Coffee Shop", "amount": 15.0, "type": "EXPENSE", "key": "alinma_baseline_coffee_2"},
+        {"description": "Half Million Coffee Shop", "amount": 16.0, "type": "EXPENSE", "key": "alinma_baseline_coffee_3"},
+        {"description": "Half Million Coffee Shop", "amount": 17.0, "type": "EXPENSE", "key": "alinma_baseline_coffee_4"},
+        {"description": "Half Million Coffee Shop", "amount": 18.0, "type": "EXPENSE", "key": "alinma_baseline_coffee_5"},
+    ]
+
+    # ── Daily rolling transactions ─────────────────────────────────────
+    # Date-scoped keys → fresh insertion every day. The 150 SAR Elixir
+    # Bunn Coffee entry is the designed Z-Score trigger: its leave-one-out
+    # baseline will be μ=16 SAR, σ≈1.58, giving Z≈84 — well above 2.0.
     _MOCK: list[dict] = [
-        # --- Entertainment ---
-        {"description": "Starbucks Coffee Riyadh",    "amount": 45.0,   "type": "EXPENSE"},
-        {"description": "Restaurant AlBaik",           "amount": 32.0,   "type": "EXPENSE"},
-        {"description": "Netflix Monthly Subscription","amount": 39.0,   "type": "EXPENSE"},
-        {"description": "Spotify Music",               "amount": 19.0,   "type": "EXPENSE"},
-        {"description": "VOX Cinemas",                 "amount": 75.0,   "type": "EXPENSE"},
-        {"description": "Coffee Shop Jarir",           "amount": 28.0,   "type": "EXPENSE"},
-        # --- Groceries ---
-        {"description": "Panda Supermarket",           "amount": 287.0,  "type": "EXPENSE"},
-        {"description": "Othaim Markets",              "amount": 156.0,  "type": "EXPENSE"},
-        {"description": "Tamimi Markets",              "amount": 198.0,  "type": "EXPENSE"},
-        # --- Utilities ---
-        {"description": "STC Monthly Bill",            "amount": 210.0,  "type": "EXPENSE"},
-        {"description": "Saudi Electricity SEC",       "amount": 320.0,  "type": "EXPENSE"},
-        # --- Savings / Income ---
-        {"description": "Alinma Auto-Save Transfer",   "amount": 1000.0, "type": "INCOME"},
-        {"description": "Salary Deposit Alinma",       "amount": 8000.0, "type": "INCOME"},
+        # Entertainment / cafés & dining
+        {"description": "Starbucks Coffee Riyadh",     "amount": 45.0,   "type": "EXPENSE"},
+        {"description": "Restaurant AlBaik",            "amount": 32.0,   "type": "EXPENSE"},
+        {"description": "Netflix Monthly Subscription", "amount": 39.0,   "type": "EXPENSE"},
+        {"description": "Spotify Music",                "amount": 19.0,   "type": "EXPENSE"},
+        {"description": "VOX Cinemas",                  "amount": 75.0,   "type": "EXPENSE"},
+        # ⚡ Z-Score trigger: 150 SAR coffee vs 16 SAR baseline → anomaly
+        {"description": "Elixir Bunn Coffee",           "amount": 150.0,  "type": "EXPENSE"},
+        # Groceries
+        {"description": "Panda Supermarket",            "amount": 287.0,  "type": "EXPENSE"},
+        {"description": "Othaim Markets",               "amount": 156.0,  "type": "EXPENSE"},
+        {"description": "Tamimi Markets",               "amount": 198.0,  "type": "EXPENSE"},
+        # Utilities
+        {"description": "STC Monthly Bill",             "amount": 210.0,  "type": "EXPENSE"},
+        {"description": "Saudi Electricity SEC",        "amount": 320.0,  "type": "EXPENSE"},
+        # Income / savings
+        {"description": "Alinma Auto-Save Transfer",    "amount": 1000.0, "type": "INCOME"},
+        {"description": "Salary Deposit Alinma",        "amount": 8000.0, "type": "INCOME"},
     ]
 
     today = _date.today().isoformat()
     synced = 0
     already_synced = 0
 
+    # Insert baseline first (permanent keys, inserted once ever).
+    for mock in _BASELINE:
+        payload = TransactionCreateDTO(
+            user_id=user_id,
+            amount=mock["amount"],
+            description=mock["description"],
+            type=mock["type"],
+            idempotency_key=mock["key"],
+        )
+        try:
+            result = await run_in_threadpool(facade.process_and_store, payload)
+            if result.is_replay:
+                already_synced += 1
+            else:
+                synced += 1
+        except Exception:  # noqa: BLE001
+            logger.warning("Skipped baseline transaction: %s", mock["description"])
+
+    # Insert daily rolling transactions.
     for mock in _MOCK:
         key = f"alinma_sync_{today}_{mock['description'].replace(' ', '_')}"
         payload = TransactionCreateDTO(

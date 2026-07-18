@@ -19,7 +19,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late Future<DashboardSummary> _future;
   bool _syncing = false;
 
-  final _currencyFmt = NumberFormat.currency(locale: 'ar_SA', symbol: 'ر.س', decimalDigits: 0);
+  final _currencyFmt =
+      NumberFormat.currency(locale: 'ar_SA', symbol: 'ر.س', decimalDigits: 0);
 
   @override
   void initState() {
@@ -27,13 +28,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _future = _api.getDashboardSummary(widget.userId);
   }
 
-  void _refresh() => setState(() => _future = _api.getDashboardSummary(widget.userId));
+  void _refresh() =>
+      setState(() => _future = _api.getDashboardSummary(widget.userId));
 
   Future<void> _onSync() async {
     if (_syncing) return;
     setState(() => _syncing = true);
-    // 2-second simulated secure bank handshake.
-    await Future.delayed(const Duration(seconds: 2));
+    await Future.delayed(const Duration(seconds: 2)); // secure handshake UX
     try {
       final result = await _api.syncOpenBanking(widget.userId);
       if (!mounted) return;
@@ -57,7 +58,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('مركز القيادة المالية'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('المستشار المالي الذكي'),
+        centerTitle: true,
+      ),
       body: RefreshIndicator(
         onRefresh: () async => _refresh(),
         child: FutureBuilder<DashboardSummary>(
@@ -75,53 +79,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ]);
             }
-
             final data = snapshot.data!;
-
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-              children: [
-
-                // ── 1. Sync Banner ────────────────────────────────────
-                _SyncBanner(syncing: _syncing, onTap: _onSync),
-                const SizedBox(height: 16),
-
-                // ── 2. Anomaly Radar (visible only when anomalies exist)
-                if (data.anomalies.isNotEmpty) ...[
-                  _AnomalyRadarCard(
-                    anomalies: data.anomalies,
-                    healthScore: data.oasisHealthScore,
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // ── 3. Wallet Balance ─────────────────────────────────
-                _WalletCard(
-                  balance: data.currentBalance,
-                  income: data.totalIncome,
-                  expenses: data.totalExpenses,
-                  fmt: _currencyFmt,
-                ),
-                const SizedBox(height: 16),
-
-                // ── 4. Trajectory Deviation ───────────────────────────
-                _TrajectoryCard(
-                  deviation: data.trajectoryDeviation,
-                  delayMonths: data.trajectoryDelayMonths,
-                  hasGoal: data.activeGoal != null,
-                  fmt: _currencyFmt,
-                ),
-                const SizedBox(height: 16),
-
-                // ── 5. Smart Nudge ────────────────────────────────────
-                _NudgeCard(
-                  nudge: data.nudgeMessage.isNotEmpty
-                      ? data.nudgeMessage
-                      : data.insights.trajectoryMessage,
-                  volatility: data.spendingVolatility,
-                  fmt: _currencyFmt,
-                ),
-              ],
+            return _DashboardBody(
+              data: data,
+              syncing: _syncing,
+              onSync: _onSync,
+              fmt: _currencyFmt,
             );
           },
         ),
@@ -130,238 +93,652 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Sync Banner
-// ────────────────────────────────────────────────────────────────────────────
+// ─── Body ────────────────────────────────────────────────────────────────────
 
-class _SyncBanner extends StatelessWidget {
+class _DashboardBody extends StatelessWidget {
+  final DashboardSummary data;
   final bool syncing;
-  final VoidCallback onTap;
-  const _SyncBanner({required this.syncing, required this.onTap});
+  final VoidCallback onSync;
+  final NumberFormat fmt;
+
+  const _DashboardBody({
+    required this.data,
+    required this.syncing,
+    required this.onSync,
+    required this.fmt,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: syncing ? null : onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF1B5E40), Color(0xFF2E7D55)],
-              begin: Alignment.centerRight,
-              end: Alignment.centerLeft,
-            ),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            child: Row(
-              children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  child: syncing
-                      ? const SizedBox(
-                          key: ValueKey('loading'),
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2.5),
-                        )
-                      : const Icon(Icons.sync_rounded,
-                          color: Colors.white, size: 22, key: ValueKey('icon')),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        syncing
-                            ? 'جارٍ الاتصال بمحفظة الإنماء...'
-                            : 'مزامنة محفظة الإنماء 🔄',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15),
-                      ),
-                      if (!syncing)
-                        const Text(
-                          'اسحب معاملاتك الأخيرة من بنك الإنماء',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                    ],
-                  ),
-                ),
-                if (!syncing)
-                  const Icon(Icons.arrow_forward_ios_rounded,
-                      color: Colors.white70, size: 14),
-              ],
-            ),
-          ),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 48),
+      children: [
+        // ── Section 1: رصيد محفظة الإنماء ────────────────────────────
+        _WalletSection(
+          balance: data.currentBalance,
+          income: data.totalIncome,
+          expenses: data.totalExpenses,
+          fmt: fmt,
+          syncing: syncing,
+          onSync: onSync,
         ),
+        const SizedBox(height: 16),
+
+        // ── Section 2: تحليل مصروفاتك ─────────────────────────────────
+        _SpendingAnalysisSection(categories: data.spendingByCategory, fmt: fmt),
+        const SizedBox(height: 16),
+
+        // ── Section 3: حالة خطة الادخار ──────────────────────────────
+        _SavingsPlanSection(
+          deviation: data.trajectoryDeviation,
+          delayMonths: data.trajectoryDelayMonths,
+          hasGoal: data.activeGoal != null,
+          goal: data.activeGoal,
+          fmt: fmt,
+        ),
+        const SizedBox(height: 16),
+
+        // ── Section 4: رادار المصروفات (conditional) ──────────────────
+        if (data.anomalies.isNotEmpty) ...[
+          _ExpensesRadarSection(
+            anomalies: data.anomalies,
+            healthScore: data.oasisHealthScore,
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // ── Section 5: توصية المستشار الذكي ──────────────────────────
+        _SmartAdvisorSection(
+          message: data.nudgeMessage.isNotEmpty
+              ? data.nudgeMessage
+              : data.insights.trajectoryMessage,
+          volatility: data.spendingVolatility,
+          fmt: fmt,
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Section 1: Wallet ───────────────────────────────────────────────────────
+
+class _WalletSection extends StatelessWidget {
+  final double balance, income, expenses;
+  final NumberFormat fmt;
+  final bool syncing;
+  final VoidCallback onSync;
+
+  const _WalletSection({
+    required this.balance,
+    required this.income,
+    required this.expenses,
+    required this.fmt,
+    required this.syncing,
+    required this.onSync,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            icon: Icons.account_balance_wallet_rounded,
+            title: 'رصيد محفظة الإنماء',
+          ),
+          const SizedBox(height: 14),
+          Text(
+            fmt.format(balance),
+            style: const TextStyle(
+              fontSize: 38,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text('الرصيد الإجمالي', style: AppTextStyles.small),
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(
+              child: _MiniStat(
+                label: 'إجمالي الدخل',
+                value: fmt.format(income),
+                color: AppColors.success,
+                icon: Icons.arrow_circle_up_rounded,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _MiniStat(
+                label: 'إجمالي المصروفات',
+                value: fmt.format(expenses),
+                color: AppColors.danger,
+                icon: Icons.arrow_circle_down_rounded,
+              ),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          // Sync button inside the wallet card.
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: syncing ? null : onSync,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primaryDark,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: syncing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync_rounded, size: 20),
+              label: Text(
+                syncing ? 'جارٍ الاتصال بالإنماء...' : 'مزامنة المصرفية المفتوحة 🔄',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Anomaly Radar Card
-// ────────────────────────────────────────────────────────────────────────────
+// ─── Section 2: Spending Analysis ────────────────────────────────────────────
 
-class _AnomalyRadarCard extends StatelessWidget {
+class _SpendingAnalysisSection extends StatelessWidget {
+  final List<CategoryBreakdown> categories;
+  final NumberFormat fmt;
+
+  const _SpendingAnalysisSection(
+      {required this.categories, required this.fmt});
+
+  static const Map<String, Color> _catColor = {
+    'ENTERTAINMENT': Color(0xFFF59E0B),
+    'GROCERIES': Color(0xFF10B981),
+    'UTILITIES': Color(0xFF3B82F6),
+    'SAVINGS': Color(0xFF065F46),
+    'UNCATEGORIZED': Color(0xFF9CA3AF),
+  };
+
+  static const Map<String, String> _catLabel = {
+    'ENTERTAINMENT': 'طعام وترفيه',
+    'GROCERIES': 'بقالة',
+    'UTILITIES': 'فواتير',
+    'SAVINGS': 'مدخرات',
+    'UNCATEGORIZED': 'أخرى',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    // Show only expense-side categories (exclude pure savings from bar).
+    final items =
+        categories.where((c) => c.category.name != 'SAVINGS').toList();
+    final totalExpenses =
+        items.fold(0.0, (s, c) => s + c.totalAmount);
+
+    // Fall back to illustrative mock when no real data yet.
+    final hasSeed = items.isNotEmpty && totalExpenses > 0;
+
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            icon: Icons.donut_small_rounded,
+            title: 'تحليل مصروفاتك',
+          ),
+          const SizedBox(height: 16),
+
+          // ── Segmented bar ───────────────────────────────────────────
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              height: 28,
+              child: hasSeed
+                  ? Row(
+                      children: items.map((c) {
+                        final frac = (c.totalAmount / totalExpenses)
+                            .clamp(0.01, 1.0);
+                        final color =
+                            _catColor[c.category.name] ??
+                                const Color(0xFF9CA3AF);
+                        return Flexible(
+                          flex: (frac * 1000).round(),
+                          child: Container(color: color, height: 28),
+                        );
+                      }).toList(),
+                    )
+                  : Row(children: [
+                      Flexible(
+                          flex: 400,
+                          child: Container(
+                              color: const Color(0xFFF59E0B), height: 28)),
+                      Flexible(
+                          flex: 300,
+                          child: Container(
+                              color: const Color(0xFF3B82F6), height: 28)),
+                      Flexible(
+                          flex: 300,
+                          child: Container(
+                              color: const Color(0xFF10B981), height: 28)),
+                    ]),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Legend rows ─────────────────────────────────────────────
+          if (hasSeed)
+            ...items.map((c) {
+              final pct = totalExpenses > 0
+                  ? (c.totalAmount / totalExpenses * 100)
+                  : 0.0;
+              final color =
+                  _catColor[c.category.name] ?? const Color(0xFF9CA3AF);
+              final label =
+                  _catLabel[c.category.name] ?? c.category.label;
+              return _LegendRow(
+                color: color,
+                label: label,
+                pct: pct,
+                amount: fmt.format(c.totalAmount),
+              );
+            })
+          else ...[
+            _LegendRow(
+                color: const Color(0xFFF59E0B),
+                label: 'طعام وترفيه',
+                pct: 40,
+                amount: '—'),
+            _LegendRow(
+                color: const Color(0xFF3B82F6),
+                label: 'فواتير',
+                pct: 30,
+                amount: '—'),
+            _LegendRow(
+                color: const Color(0xFF10B981),
+                label: 'بقالة',
+                pct: 30,
+                amount: '—'),
+            const SizedBox(height: 4),
+            const Text(
+              'زامن المحفظة لرؤية تحليلك الفعلي',
+              style: AppTextStyles.small,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LegendRow extends StatelessWidget {
+  final Color color;
+  final String label, amount;
+  final double pct;
+  const _LegendRow(
+      {required this.color,
+      required this.label,
+      required this.pct,
+      required this.amount});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              width: 11,
+              height: 11,
+              decoration: BoxDecoration(
+                  color: color, borderRadius: BorderRadius.circular(3)),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+                child: Text(label,
+                    style: AppTextStyles.label
+                        .copyWith(fontWeight: FontWeight.w500))),
+            Text(
+              '${pct.toStringAsFixed(0)}٪',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, color: color, fontSize: 13),
+            ),
+            if (amount != '—') ...[
+              const SizedBox(width: 8),
+              Text(amount,
+                  style: AppTextStyles.small
+                      .copyWith(color: AppColors.textPrimary)),
+            ],
+          ]),
+          const SizedBox(height: 5),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (pct / 100).clamp(0.0, 1.0),
+              minHeight: 5,
+              backgroundColor: color.withOpacity(0.12),
+              valueColor: AlwaysStoppedAnimation(color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Section 3: Savings Plan Status ──────────────────────────────────────────
+
+class _SavingsPlanSection extends StatelessWidget {
+  final double deviation, delayMonths;
+  final bool hasGoal;
+  final GoalProgress? goal;
+  final NumberFormat fmt;
+
+  const _SavingsPlanSection({
+    required this.deviation,
+    required this.delayMonths,
+    required this.hasGoal,
+    required this.goal,
+    required this.fmt,
+  });
+
+  String _humanText() {
+    if (!hasGoal) {
+      return 'حدد خطة ادخار لرؤية توقعات الوصول لهدفك بدقة 🎯';
+    }
+    if (deviation >= 100) {
+      return 'بمعدل ادخارك الحالي، ستصل لهدفك قبل الموعد المحدد 🚀 — '
+          'تقدمت بمقدار ${fmt.format(deviation)} ريال عن الخطة';
+    }
+    if (deviation <= -100 && delayMonths > 0) {
+      final months = delayMonths.toStringAsFixed(0);
+      return 'أنت متأخر عن الخطة. الخوارزمية تتوقع تأخر هدفك لمدة '
+          '$months ${delayMonths == 1 ? 'شهر' : 'أشهر'} '
+          'إذا استمريت بهذا المعدل ⚠️';
+    }
+    return 'مسارك على المسار الصحيح — تابع التزامك بالخطة الشهرية 📈';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ahead = deviation >= 0;
+    final statusColor = !hasGoal
+        ? AppColors.textSecondary
+        : ahead
+            ? AppColors.success
+            : AppColors.danger;
+
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            icon: Icons.savings_rounded,
+            title: 'حالة خطة الادخار',
+          ),
+          const SizedBox(height: 14),
+
+          // Status chip
+          if (hasGoal)
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: statusColor.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    ahead
+                        ? Icons.trending_up_rounded
+                        : Icons.trending_down_rounded,
+                    color: statusColor,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    ahead ? 'متقدم على الخطة' : 'متأخر عن الخطة',
+                    style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12.5),
+                  ),
+                ],
+              ),
+            ),
+
+          const SizedBox(height: 12),
+          Text(_humanText(), style: AppTextStyles.body),
+
+          // Goal progress bar
+          if (goal != null) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: goal!.progressRatio.clamp(0.0, 1.0),
+                      minHeight: 8,
+                      backgroundColor: AppColors.border,
+                      valueColor:
+                          const AlwaysStoppedAnimation(AppColors.primary),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  '${(goal!.progressRatio * 100).toStringAsFixed(0)}٪',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryDark,
+                      fontSize: 13),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${goal!.title} — ${fmt.format(goal!.savedAmount)} من ${fmt.format(goal!.targetAmount)}',
+              style: AppTextStyles.small,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Section 4: Expenses Radar ────────────────────────────────────────────────
+
+class _ExpensesRadarSection extends StatelessWidget {
   final List<String> anomalies;
   final double healthScore;
-  const _AnomalyRadarCard({required this.anomalies, required this.healthScore});
+
+  const _ExpensesRadarSection(
+      {required this.anomalies, required this.healthScore});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.danger.withOpacity(0.05),
+        color: AppColors.danger.withOpacity(0.04),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.danger.withOpacity(0.35), width: 1.5),
+        border:
+            Border.all(color: AppColors.danger.withOpacity(0.35), width: 1.5),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.danger.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.radar_rounded,
-                      color: AppColors.danger, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('الرادار المالي',
-                          style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.danger)),
-                      Text(
-                        '${anomalies.length} نمط إنفاق غير طبيعي تم رصده',
-                        style: AppTextStyles.small,
-                      ),
-                    ],
-                  ),
-                ),
-                // Health impact badge
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.danger.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'صحة الواحة: ${healthScore.toStringAsFixed(0)}٪',
-                    style: const TextStyle(
-                        color: AppColors.danger,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.danger.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.radar_rounded,
+                  color: AppColors.danger, size: 20),
             ),
-            const SizedBox(height: 14),
-            const Divider(height: 1, color: Color(0x22CC4444)),
-            const SizedBox(height: 14),
-            // Anomaly list
-            ...anomalies.map((a) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('•  ',
-                          style: TextStyle(
-                              color: AppColors.danger,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              height: 1.1)),
-                      Expanded(
-                        child: Text(a,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'رادار المصروفات',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.danger),
+                  ),
+                  Text(
+                    '${anomalies.length} نمط إنفاق غير طبيعي',
+                    style: AppTextStyles.small,
+                  ),
+                ],
+              ),
+            ),
+            _HealthBadge(score: healthScore),
+          ]),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: Color(0x22CC4444)),
+          const SizedBox(height: 14),
+          ...anomalies.map((msg) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('•  ',
+                        style: TextStyle(
+                            color: AppColors.danger,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            height: 1.1)),
+                    Expanded(
+                        child: Text(msg,
                             style: const TextStyle(
                                 fontSize: 13.5,
                                 color: AppColors.textPrimary,
-                                height: 1.5)),
-                      ),
-                    ],
-                  ),
-                )),
-          ],
-        ),
+                                height: 1.55))),
+                  ],
+                ),
+              )),
+        ],
       ),
     );
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Wallet Balance Card
-// ────────────────────────────────────────────────────────────────────────────
-
-class _WalletCard extends StatelessWidget {
-  final double balance, income, expenses;
-  final NumberFormat fmt;
-  const _WalletCard(
-      {required this.balance,
-      required this.income,
-      required this.expenses,
-      required this.fmt});
+class _HealthBadge extends StatelessWidget {
+  final double score;
+  const _HealthBadge({required this.score});
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        'الواحة ${score.toStringAsFixed(0)}٪',
+        style: const TextStyle(
+            color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+
+// ─── Section 5: Smart Advisor ─────────────────────────────────────────────────
+
+class _SmartAdvisorSection extends StatelessWidget {
+  final String message;
+  final double volatility;
+  final NumberFormat fmt;
+
+  const _SmartAdvisorSection(
+      {required this.message, required this.volatility, required this.fmt});
+
+  @override
+  Widget build(BuildContext context) {
+    return _Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: const [
-            Icon(Icons.account_balance_wallet_rounded,
-                color: AppColors.primaryDark, size: 20),
-            SizedBox(width: 8),
-            Text('محفظة الإنماء', style: AppTextStyles.label),
-          ]),
-          const SizedBox(height: 14),
-          Text(
-            fmt.format(balance),
-            style: const TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryDark),
+          _SectionHeader(
+            icon: Icons.psychology_rounded,
+            title: 'توصية المستشار الذكي',
           ),
-          const SizedBox(height: 2),
-          const Text('الرصيد الإجمالي', style: AppTextStyles.small),
-          const SizedBox(height: 16),
-          Row(children: [
-            Expanded(
-                child: _MiniStat(
-                    label: 'إجمالي الدخل',
-                    value: fmt.format(income),
-                    color: AppColors.success,
-                    icon: Icons.trending_up_rounded)),
-            const SizedBox(width: 10),
-            Expanded(
-                child: _MiniStat(
-                    label: 'إجمالي المصروفات',
-                    value: fmt.format(expenses),
-                    color: AppColors.danger,
-                    icon: Icons.trending_down_rounded)),
-          ]),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.primaryDark.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: AppColors.primaryDark.withOpacity(0.15)),
+            ),
+            child: Text(message,
+                style: AppTextStyles.body
+                    .copyWith(color: AppColors.textPrimary, height: 1.65)),
+          ),
+          if (volatility > 0) ...[
+            const SizedBox(height: 12),
+            Row(children: [
+              const Icon(Icons.show_chart_rounded,
+                  size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 6),
+              Text(
+                'تذبذب الإنفاق اليومي: ${fmt.format(volatility)} ر.س',
+                style: AppTextStyles.small,
+              ),
+            ]),
+          ],
         ],
       ),
     );
+  }
+}
+
+// ─── Shared Widgets ───────────────────────────────────────────────────────────
+
+class _Card extends StatelessWidget {
+  final Widget child;
+  const _Card({required this.child});
+
+  @override
+  Widget build(BuildContext context) => SectionCard(child: child);
+}
+
+class _SectionHeader extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  const _SectionHeader({required this.icon, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Icon(icon, color: AppColors.primaryDark, size: 20),
+      const SizedBox(width: 8),
+      Text(title, style: AppTextStyles.label),
+    ]);
   }
 }
 
@@ -392,144 +769,6 @@ class _MiniStat extends StatelessWidget {
                   fontWeight: FontWeight.bold, color: color, fontSize: 15)),
           const SizedBox(height: 2),
           Text(label, style: AppTextStyles.small),
-        ],
-      ),
-    );
-  }
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Trajectory Deviation Card
-// ────────────────────────────────────────────────────────────────────────────
-
-class _TrajectoryCard extends StatelessWidget {
-  final double deviation, delayMonths;
-  final bool hasGoal;
-  final NumberFormat fmt;
-  const _TrajectoryCard(
-      {required this.deviation,
-      required this.delayMonths,
-      required this.hasGoal,
-      required this.fmt});
-
-  @override
-  Widget build(BuildContext context) {
-    final ahead = deviation >= 0;
-    final color = ahead ? AppColors.success : AppColors.danger;
-    final icon =
-        ahead ? Icons.trending_up_rounded : Icons.trending_down_rounded;
-
-    return SectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 8),
-            const Text('انحراف المسار المالي', style: AppTextStyles.label),
-          ]),
-          const SizedBox(height: 14),
-          if (!hasGoal)
-            const Text(
-                'أنشئ هدفاً مالياً لمتابعة مسارك بدقة 🎯',
-                style: AppTextStyles.body)
-          else ...[
-            Container(
-              width: double.infinity,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: color.withOpacity(0.2)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    ahead
-                        ? 'متقدم بـ ${fmt.format(deviation)} ✅'
-                        : 'متأخر بـ ${fmt.format(deviation.abs())}',
-                    style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: color),
-                  ),
-                  if (!ahead && delayMonths > 0) ...[
-                    const SizedBox(height: 6),
-                    Row(children: [
-                      Icon(Icons.schedule_rounded,
-                          size: 14, color: AppColors.textSecondary),
-                      const SizedBox(width: 6),
-                      Text(
-                        'تأخر متوقع: ${delayMonths.toStringAsFixed(1)} أشهر',
-                        style: AppTextStyles.small,
-                      ),
-                    ]),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Smart Nudge Card
-// ────────────────────────────────────────────────────────────────────────────
-
-class _NudgeCard extends StatelessWidget {
-  final String nudge;
-  final double volatility;
-  final NumberFormat fmt;
-  const _NudgeCard(
-      {required this.nudge, required this.volatility, required this.fmt});
-
-  @override
-  Widget build(BuildContext context) {
-    final isWarning = nudge.contains('تحذير') ||
-        nudge.contains('عطشى') ||
-        nudge.contains('مرتفع');
-    final iconColor = isWarning ? AppColors.danger : AppColors.gold;
-
-    return SectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Icon(
-                isWarning
-                    ? Icons.warning_amber_rounded
-                    : Icons.auto_awesome_rounded,
-                color: iconColor,
-                size: 20),
-            const SizedBox(width: 8),
-            const Text('النبضة الذكية', style: AppTextStyles.label),
-          ]),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(12)),
-            child: Text(nudge, style: AppTextStyles.body),
-          ),
-          if (volatility > 0) ...[
-            const SizedBox(height: 10),
-            Row(children: [
-              Icon(Icons.show_chart_rounded,
-                  size: 14, color: AppColors.textSecondary),
-              const SizedBox(width: 6),
-              Text(
-                'تذبذب الإنفاق اليومي: ${fmt.format(volatility)} ر.س',
-                style: AppTextStyles.small,
-              ),
-            ]),
-          ],
         ],
       ),
     );

@@ -1,0 +1,26 @@
+Act as a Senior FinTech UX/UI Architect and a Lead Data Scientist. I reviewed the dashboard. The literal Arabic translations (like "النبضة الحية") are terrible for a FinTech app, the UI is too short and lacks visual data, and the "Deviation/Trajectory" concept is hard to understand for a normal user.
+
+We need to revamp the Dashboard completely to act as a "Smart Financial Advisor" integrated with Alinma Bank. Implement the following updates in Flutter and FastAPI:
+
+### 1. FIXING ARABIC TERMINOLOGY (Flutter & Backend)
+Never use literal translations. Use these exact Saudi FinTech terms:
+- Replace "النبضة الحية" or "النبضة الذكية" with "توصية المستشار الذكي" (Smart Advisor Recommendation).
+- Replace "الانحراف" with "حالة خطة الادخار" (Savings Plan Status).
+- Replace "الشذوذ المالي" with "رادار المصروفات" (Expenses Radar).
+- Ensure all generated Arabic text is natural, encouraging, and professional.
+
+### 2. THE MOCK DATA STORY (FastAPI - Backend)
+To impress the judges with our Z-Score algorithm, update the `/sync_open_banking` mock logic to simulate this EXACT scenario:
+- Assume the user's historical baseline for "Coffee/Cafes" has a Mean (μ) of 16 SAR (e.g., buying daily coffee at "Half Million").
+- Inject a NEW transaction in the mock sync: 150 SAR at "Elixir Bunn" (A high-end cafe).
+- The Z-Score algorithm must catch this massive spike. The `anomalies` list should output a human-readable string: "⚠️ إنفاق غير معتاد: دفعت 150 ريال في (Elixir Bunn). هذا يتجاوز متوسط صرفك المعتاد على المقاهي (16 ريال). هذا التذبذب يؤثر سلباً على صحة واحتك!"
+
+### 3. DASHBOARD UI EXPANSION & CHARTS (Flutter)
+Make the dashboard longer, highly analytical, and visually appealing. Add these exact sections vertically:
+- Section 1: "رصيد محفظة الإنماء" (Wallet Balance) with the "مزامنة المصرفية المفتوحة 🔄" button.
+- Section 2: [NEW] "تحليل مصروفاتك" (Spending Analysis Chart). Add a simple graphical representation (you can use a horizontal progress bar with multiple colors, or a simple Flutter chart) showing a mock distribution (e.g., 40% Food, 30% Bills, 30% Savings) to make the UI look like a real analytical dashboard.
+- Section 3: "حالة خطة الادخار" (Trajectory). Translate the math into human text. Example: "بمعدل ادخارك الحالي، ستصل لهدفك قبل الموعد بـ 15 يوماً 🚀" (If positive) or "أنت متأخر عن الخطة. الخوارزمية تتوقع تأخر هدفك لمدة شهر إذا استمريت بهذا المعدل ⚠️" (If negative).
+- Section 4: "رادار المصروفات" (Anomalies). Display the Z-Score alerts prominently in a warning-styled card.
+- Section 5: "توصية المستشار الذكي" (Actionable Nudge). Display a helpful tip, e.g., "وفرت 100 ريال من ميزانية المطاعم هذا الأسبوع، حولها الآن للادخار لإنعاش نخلتك 🌱".
+
+Generate the exact updated Python files (algorithm and mock scenario) and Dart files (Dashboard UI, adding the visual chart element and fixing the text). Make the UI scrollable and rich.
