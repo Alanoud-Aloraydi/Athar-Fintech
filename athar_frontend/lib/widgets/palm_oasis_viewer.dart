@@ -22,20 +22,48 @@ class PalmOasisController {
   PalmOasisController._native(this._wvc) : _webImpl = null;
   PalmOasisController._web(this._webImpl) : _wvc = null;
 
-  /// Shows [count] palms (clamped 1–12). Safe to call before the scene is
-  /// ready — the call is simply dropped; callers should retry once
-  /// [isSceneReady] is true.
+  /// Updates the 3D scene with goal progress and oasis health simultaneously.
+  ///
+  /// [progress] — goal completion ratio, 0.0–1.0. Controls palm visibility:
+  ///   0.0 → 1 palm visible, 1.0 → all 9 palms visible.
+  /// [health] — oasis health score, 0–100. Controls CSS filter dryness:
+  ///   ≥80 → vibrant (no filter), 50–79 → slightly desaturated,
+  ///   <50 → dry (sepia + heavy desaturation).
+  ///
+  /// Safe to call before the scene is ready — the call is silently dropped
+  /// and the caller is responsible for retrying once [isSceneReady] is true.
+  Future<void> updateOasisState({
+    required double progress,
+    required double health,
+  }) async {
+    if (!_sceneReady) return;
+    final p = progress.clamp(0.0, 1.0);
+    final h = health.clamp(0.0, 100.0);
+    if (kIsWeb) {
+      _webImpl?.updateOasisState(progress: p, health: h);
+    } else {
+      try {
+        // applyGrowth / applyHealth are exposed on window by oasis_viewer.html.
+        await _wvc?.runJavaScript(
+          'try{window.updateOasisState($p,$h);}catch(e){}',
+        );
+      } catch (_) {
+        // JS channel unavailable (WebView torn down) — non-fatal.
+      }
+    }
+  }
+
+  /// Legacy: shows [count] palms (clamped 1–9).
+  /// Prefer [updateOasisState] for new code.
   Future<void> setVisiblePalms(int count) async {
     if (!_sceneReady) return;
-    final clamped = count.clamp(1, 12);
+    final clamped = count.clamp(1, 9);
     if (kIsWeb) {
       _webImpl?.setVisiblePalms(clamped);
     } else {
       try {
-        await _wvc?.runJavaScript('window.setVisiblePalmCount($clamped);');
-      } catch (_) {
-        // JS channel unavailable (e.g. WebView torn down) -- non-fatal.
-      }
+        await _wvc?.runJavaScript('try{window.setVisiblePalmCount($clamped);}catch(e){}');
+      } catch (_) {}
     }
   }
 }

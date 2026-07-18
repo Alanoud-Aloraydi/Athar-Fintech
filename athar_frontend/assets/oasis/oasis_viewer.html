@@ -1,22 +1,19 @@
 <!DOCTYPE html>
 <!--
-  Athar Palm Oasis — Spline scene host page.
+  Athar Palm Oasis — Spline scene host page (v2).
 
-  Loaded in two ways depending on platform:
-    • Flutter Web  → inside an <iframe> via HtmlElementView.
-                     Commands arrive via window.addEventListener('message').
-                     Events are sent back via window.parent.postMessage.
-    • Flutter Native → inside a WebViewWidget.
-                     Commands arrive via window.setVisiblePalmCount() (JS eval).
-                     Events are sent back via the OasisBridge JS channel.
+  Supports TWO commands via postMessage (Flutter Web) or global functions
+  (Flutter Native via WebViewController.runJavaScript):
 
-  Either way, `window.setVisiblePalmCount(n)` works the same: shows
-  Palm_01..Palm_0n and hides the rest (all 12 palms live in the scene).
+    {cmd: 'updateOasisState', progress: 0.0–1.0, health: 0–100}
+      → applyGrowth(progress)  — controls palm visibility (1–9 palms)
+      → applyHealth(health)    — applies CSS filter for dryness
 
-  Lifecycle events posted to Flutter:
-    {"event":"ready"}  — scene loaded, initial palm count applied.
-    {"event":"error","message":"..."}  — loading failed for any reason
-      (network, JS exception, timeout, etc.).
+    {cmd: 'setVisiblePalmCount', count: N}   ← legacy compat
+
+  Lifecycle events sent to Flutter:
+    {event: 'ready'}            — scene loaded, initial state applied.
+    {event: 'error', message}   — load failed.
 -->
 <html lang="ar" dir="rtl">
 <head>
@@ -25,28 +22,24 @@
   <title>واحة أثَر</title>
   <style>
     html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
       background: transparent;
       overflow: hidden;
     }
     #oasis-canvas {
-      width: 100%;
-      height: 100%;
+      width: 100%; height: 100%;
       display: block;
       touch-action: none;
+      /* health transition is applied here */
+      transition: filter 2s ease-in-out;
     }
     #oasis-loading {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
       font-family: -apple-system, "Segoe UI", Tahoma, sans-serif;
-      color: #6b7f6b;
-      font-size: 14px;
+      color: #6b7f6b; font-size: 14px;
+      pointer-events: none;
     }
   </style>
 </head>
@@ -55,12 +48,9 @@
   <canvas id="oasis-canvas"></canvas>
 
   <script>
-    // ── Outbound: send lifecycle events to Flutter ────────────────────────
-    // Tries both transports; only one will be active at runtime.
+    // ── Outbound: send lifecycle events to Flutter ────────────────────
     function postToFlutter(payload) {
-      // Flutter Web path — iframe parent window
       try { window.parent.postMessage(payload, '*'); } catch (_) {}
-      // Flutter Native path — WebView JS channel
       try {
         if (window.OasisBridge && window.OasisBridge.postMessage) {
           window.OasisBridge.postMessage(JSON.stringify(payload));
@@ -68,98 +58,112 @@
       } catch (_) {}
     }
 
-    // ── Global error fence ────────────────────────────────────────────────
-    // Catches synchronous JS exceptions and unhandled promise rejections
-    // that occur inside the module below. Reports them to Flutter so the
-    // fallback UI is shown instead of a blank/frozen canvas.
+    // ── Global error fence ────────────────────────────────────────────
     var _errorReported = false;
-
     function reportError(msg) {
       if (_errorReported) return;
       _errorReported = true;
-      var loadingEl = document.getElementById('oasis-loading');
-      if (loadingEl) loadingEl.textContent = 'تعذّر تحميل الواحة';
+      var el = document.getElementById('oasis-loading');
+      if (el) el.textContent = 'تعذّر تحميل الواحة';
       postToFlutter({ event: 'error', message: String(msg || 'unknown error') });
     }
-
     window.onerror = function (message, source, lineno, colno, error) {
       reportError(error ? (error.message || message) : message);
-      return true; // prevent default browser error output
+      return true;
     };
-
-    window.addEventListener('unhandledrejection', function (event) {
-      var reason = event.reason;
-      reportError(reason && reason.message ? reason.message : String(reason));
-      event.preventDefault();
+    window.addEventListener('unhandledrejection', function (ev) {
+      var r = ev.reason;
+      reportError(r && r.message ? r.message : String(r));
+      ev.preventDefault();
     });
 
-    // Load-time watchdog: if the scene hasn't fired "ready" within 18 seconds
-    // (slightly less than Flutter's own 20 s timeout so Flutter sees our
-    // structured error first), report a timeout error.
+    // ── Load-time watchdog ────────────────────────────────────────────
     var _sceneReady = false;
     var _watchdog = setTimeout(function () {
-      if (!_sceneReady) {
-        reportError('Scene load timed out');
-      }
+      if (!_sceneReady) reportError('Scene load timed out');
     }, 18000);
   </script>
 
   <script type="module">
-    // Both files are bundled as Flutter web assets and served from the same
-    // origin — no CDN or internet connection required.
+    // Vendored local assets — no CDN or internet required.
     import { Application } from './runtime.js';
 
-    // Scene exported from Spline, bundled as a local asset.
     const SCENE_URL   = './scene.splinecode';
-    const TOTAL_PALMS = 12;
+    const TOTAL_PALMS = 9;          // palms in the Spline scene (Palm_01 … Palm_09)
 
     const canvas    = document.getElementById('oasis-canvas');
     const loadingEl = document.getElementById('oasis-loading');
-    const app       = new Application(canvas);
+    const spline    = new Application(canvas);
 
-    // ── Palm visibility ───────────────────────────────────────────────────
-    function palmName(i) {
-      return 'Palm_' + String(i).padStart(2, '0');
+    // ── Helpers ───────────────────────────────────────────────────────
+
+    function findPalm(i) {
+      const name = 'Palm_' + String(i).padStart(2, '0');
+      let obj = null;
+      try { obj = spline.findObjectByName ? spline.findObjectByName(name) : null; } catch (_) {}
+      if (!obj) try { obj = spline.getObjectByName ? spline.getObjectByName(name) : null; } catch (_) {}
+      return obj;
     }
 
-    // Exposed to Flutter via WebViewController.runJavaScript (native) or
-    // called directly by the postMessage listener (web). Clamps to [1, 12]
-    // so a bad value can never hide every palm or reference Palm_13+.
-    window.setVisiblePalmCount = function (count) {
-      const target = Math.max(1, Math.min(TOTAL_PALMS, Math.round(count)));
+    /** Shows 1–TOTAL_PALMS palms proportional to goal completion (0.0–1.0). */
+    function applyGrowth(progressPct) {
+      const pct = Math.max(0.0, Math.min(1.0, progressPct));
+      const visibleCount = Math.max(1, Math.min(TOTAL_PALMS,
+        1 + Math.floor((pct * 100) / 12.5)
+      ));
       for (let i = 1; i <= TOTAL_PALMS; i++) {
-        try {
-          const palm = app.getObjectByName(palmName(i));
-          if (palm) palm.visible = (i <= target);
-        } catch (_) {
-          // Individual palm lookup failures are non-fatal.
-        }
+        const obj = findPalm(i);
+        if (obj) obj.visible = (i <= visibleCount);
       }
-      return target;
+    }
+
+    /** Applies a CSS filter to the canvas based on health score (0–100). */
+    function applyHealth(healthScore) {
+      if (healthScore >= 80) {
+        canvas.style.filter = 'none';
+      } else if (healthScore >= 50) {
+        canvas.style.filter = 'saturate(0.7)';
+      } else {
+        canvas.style.filter = 'saturate(0.3) sepia(0.35)';
+      }
+    }
+
+    // Expose to global scope so Flutter Native can call via runJavaScript.
+    window.applyGrowth = applyGrowth;
+    window.applyHealth = applyHealth;
+
+    /** Combined entry-point used by both postMessage and runJavaScript. */
+    window.updateOasisState = function (progress, health) {
+      applyGrowth(progress);
+      applyHealth(health);
     };
 
-    // ── Inbound: receive commands from Flutter Web via postMessage ────────
-    // (Flutter Native drives the scene by calling window.setVisiblePalmCount
-    //  directly via WebViewController.runJavaScript — no listener needed.)
+    /** Legacy compat: old setVisiblePalmCount command. */
+    window.setVisiblePalmCount = function (count) {
+      applyGrowth(count / TOTAL_PALMS);
+    };
+
+    // ── Inbound: commands from Flutter Web via postMessage ────────────
     window.addEventListener('message', (e) => {
       try {
         const data = (typeof e.data === 'string') ? JSON.parse(e.data) : e.data;
-        if (data && data.cmd === 'setVisiblePalmCount') {
-          window.setVisiblePalmCount(data.count);
+        if (!data || !data.cmd) return;
+        if (data.cmd === 'updateOasisState') {
+          window.updateOasisState(data.progress ?? 0.0, data.health ?? 100);
+        } else if (data.cmd === 'setVisiblePalmCount') {
+          window.setVisiblePalmCount(data.count ?? 1);
         }
       } catch (_) {}
     });
 
-    // ── Load scene ────────────────────────────────────────────────────────
-    app
-      .load(SCENE_URL)
+    // ── Load scene ────────────────────────────────────────────────────
+    spline.load(SCENE_URL)
       .then(() => {
         if (loadingEl) loadingEl.style.display = 'none';
-        // Seed palm visible by default; Flutter calls setVisiblePalmCount
-        // with the real growth-derived count once Oasis data loads.
-        window.setVisiblePalmCount(1);
-        window._sceneReady = true;
-        clearTimeout(window._watchdog);
+        applyGrowth(0.0);          // start with 1 palm
+        applyHealth(100);          // start healthy
+        _sceneReady = true;
+        clearTimeout(_watchdog);
         postToFlutter({ event: 'ready' });
       })
       .catch((err) => {

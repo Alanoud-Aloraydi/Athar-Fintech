@@ -63,13 +63,26 @@ class OasisWebImpl {
     }
   }
 
-  /// Tells the Spline scene how many palms should be visible.
+  /// Updates the Spline scene with goal progress (0.0–1.0) and health (0–100).
+  /// This drives both palm visibility (growth) and CSS filter (health/dryness).
+  void updateOasisState({required double progress, required double health}) {
+    try {
+      _el.contentWindow?.postMessage(
+        {
+          'cmd': 'updateOasisState',
+          'progress': progress.clamp(0.0, 1.0),
+          'health': health.clamp(0.0, 100.0),
+        },
+        '*',
+      );
+    } catch (_) {}
+  }
+
+  /// Legacy: tells the scene how many palms should be visible (1–9).
   void setVisiblePalms(int count) {
     try {
       _el.contentWindow?.postMessage(
-        // Post as a plain JS object; oasis_viewer.html receives it via
-        // window.addEventListener('message', ...).
-        {'cmd': 'setVisiblePalmCount', 'count': count.clamp(1, 12)},
+        {'cmd': 'setVisiblePalmCount', 'count': count.clamp(1, 9)},
         '*',
       );
     } catch (_) {}

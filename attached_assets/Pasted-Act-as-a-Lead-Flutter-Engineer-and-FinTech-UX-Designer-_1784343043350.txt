@@ -1,0 +1,92 @@
+Act as a Lead Flutter Engineer and FinTech UX Designer. We need to completely revamp the "Oasis" (الواحة) tab. The current UI looks like a cheap game exposing raw backend variables. We must transform it into a premium FinTech gamification screen that reacts to the user's financial data, integrating our Spline 3D scene correctly.
+
+Execute these updates strictly:
+
+### 1. Update the JS Bridge (`assets/oasis/oasis_viewer.html`)
+Rewrite the HTML/JS bridge to handle BOTH "Growth" (Visibility of Palms 1 to 9) and "Health" (CSS Visual Filters for dryness). Use this EXACT script:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+    #canvas3d { width: 100%; height: 100%; display: block; transition: filter 2s ease-in-out; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas3d"></canvas>
+  <script type="module">
+    import { Application } from '[https://unpkg.com/@splinetool/runtime@1.9.82/build/runtime.js](https://unpkg.com/@splinetool/runtime@1.9.82/build/runtime.js)';
+
+    const SCENE_URL = '[https://prod.spline.design/oa7Ns7PvmCdHvQCP/scene.splinecode](https://prod.spline.design/oa7Ns7PvmCdHvQCP/scene.splinecode)';
+    const TOTAL_PALMS = 9;
+    const canvas = document.getElementById('canvas3d');
+    const spline = new Application(canvas);
+
+    function applyGrowth(progressPct) {
+      const visibleCount = Math.max(1, Math.min(TOTAL_PALMS, 1 + Math.floor((progressPct * 100) / 12.5)));
+      for (let i = 1; i <= TOTAL_PALMS; i++) {
+        const name1 = 'Palm_0' + i;
+        const name2 = 'Palm_' + i;
+        let obj = spline.findObjectByName(name1) || spline.findObjectByName(name2);
+        if (obj) { obj.visible = (i <= visibleCount); }
+      }
+    }
+
+    function applyHealth(healthScore) {
+      if (healthScore >= 80) { canvas.style.filter = 'none'; } 
+      else if (healthScore >= 50) { canvas.style.filter = 'saturate(0.7)'; } 
+      else { canvas.style.filter = 'saturate(0.3) sepia(0.35)'; }
+    }
+
+    spline.load(SCENE_URL).then(() => {
+      applyGrowth(0.0); 
+      window.parent.postMessage({ event: 'ready' }, '*');
+    });
+
+    window.addEventListener('message', (e) => {
+      if (e.data && e.data.cmd === 'updateOasisState') {
+        applyGrowth(e.data.progress);
+        applyHealth(e.data.health);
+      }
+    });
+  </script>
+</body>
+</html>
+2. THE UI PURGE (Oasis Screen)
+Open the Oasis screen Flutter file and DELETE the following entirely:
+
+The "Test Transaction" (جرّب معاملة على واحتك) button and its form.
+
+The raw number displays for Health (الصحة) and Growth (النمو).
+
+The gamey jargon cards: "Weather" (الطقس), "Aura" (الهالة), "Streak Multiplier" (مضاعف السلسلة).
+
+3. THE NEW UI LAYOUT (Vertical Stacking)
+Redesign the Oasis screen to stack vertically with these EXACT 4 sections, using proper Flutter Card widgets and clean FinTech Arabic text:
+
+Section 1 (Top 45%): The 3D Scene
+
+The Webview/Iframe displaying the Spline scene. Ensure the controller passes {cmd: 'updateOasisState', progress: active_goal_progress_pct, health: oasis_health_score} via postMessage.
+
+Section 2: "الهدف المالي" (Active Goal)
+
+A card showing the active goal's name and progress bar. Example format: "سيارة — 15,000 من 50,000 ر.س".
+
+Section 3: "حالة الري والحيوية" (Vitality Status)
+
+A card translating the backend health score into dynamic text:
+
+If health >= 80%: "واحتك في أزهى حالاتها بفضل التزامك بميزانية الإنماء! 🌟" (Green text/icon).
+
+If health < 80%: "عاجل: واحتك تعطش! التذبذب الأخير في مصروفاتك أثر عليها 🍂" (Red/Orange text/icon).
+
+Section 4: "أيام الالتزام" (Commitment Days)
+
+Replace the old "Streak" concept with a professional financial card.
+
+Text: "أنت ملتزم بميزانيتك منذ [streak_days] يوماً متتالية 🔥". (Replace [streak_days] with the actual streak variable from the backend).
+
+Generate the updated Flutter controller logic and the Oasis screen UI code to implement this exact vision.
