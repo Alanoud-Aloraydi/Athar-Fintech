@@ -176,18 +176,30 @@ class AnalyticsFacade:
             current_streak_days=oasis_state.current_streak_days if oasis_state else 0,
         )
 
+        # ── Two-Ledger balances (computed early so GoalProgressDTO is consistent) ──
+        # Savings wallet = ring-fenced baseline + whatever the user has saved toward
+        # the active goal.  This is the canonical source of truth for goal progress:
+        # if the wallet holds more than the target, the goal is achieved.
+        _wallet_raw = _BASELINE_SAVINGS + (active_goal.saved_amount if active_goal else 0.0)
+        _savings_wallet_balance_early = round(_wallet_raw, 1)
+        _active_goal_target_early     = active_goal.target_amount if active_goal else 0.0
+
         goal_progress = None
         if active_goal is not None:
+            # saved_amount in the DTO deliberately equals the savings wallet balance,
+            # not the raw DB saved_amount, so the UI always shows a coherent figure.
+            _goal_saved_display = _savings_wallet_balance_early
+            _goal_ratio = (
+                min(1.0, round(_goal_saved_display / _active_goal_target_early, 4))
+                if _active_goal_target_early > 0
+                else 0.0
+            )
             goal_progress = GoalProgressDTO(
                 goal_id=active_goal.id,
                 title=active_goal.title,
                 target_amount=active_goal.target_amount,
-                saved_amount=active_goal.saved_amount,
-                progress_ratio=(
-                    round(active_goal.saved_amount / active_goal.target_amount, 4)
-                    if active_goal.target_amount > 0
-                    else 0.0
-                ),
+                saved_amount=_goal_saved_display,
+                progress_ratio=_goal_ratio,
             )
 
         # ── Committed obligations (BNPL / التزامات) ──────────────────────
@@ -237,13 +249,13 @@ class AnalyticsFacade:
 
         # ── Two-Ledger balances ────────────────────────────────────────────
         current_account_balance = round(_BASELINE_CURRENT + (total_income - total_expenses), 1)
-        savings_wallet_balance = round(
-            _BASELINE_SAVINGS + (active_goal.saved_amount if active_goal else 0.0), 1
-        )
-        active_goal_target = active_goal.target_amount if active_goal else 0.0
+        # Re-use the value computed above (identical formula, avoids duplication).
+        savings_wallet_balance = _savings_wallet_balance_early
+        active_goal_target     = _active_goal_target_early
+        # Progress % is now wallet-based: if the wallet covers the target, it is 100%.
         active_goal_progress_pct = (
-            round(active_goal.saved_amount / active_goal.target_amount * 100, 1)
-            if active_goal and active_goal.target_amount > 0
+            min(100.0, round(savings_wallet_balance / active_goal_target * 100, 1))
+            if active_goal and active_goal_target > 0
             else 0.0
         )
 

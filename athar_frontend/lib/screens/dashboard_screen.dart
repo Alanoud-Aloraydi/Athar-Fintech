@@ -692,7 +692,12 @@ class _SavingsWalletSection extends StatelessWidget {
   });
 
   bool get _hasActiveGoal => activeGoal != null;
-  bool get _isGoalAchieved => activeGoalProgressPct >= 100;
+  // Belt-and-suspenders: catch both the pct signal from the backend
+  // AND a direct wallet-vs-target comparison so the UI never lies even if
+  // a stale cache sends a slightly rounded percentage.
+  bool get _isGoalAchieved =>
+      activeGoalProgressPct >= 100 ||
+      (activeGoalTarget > 0 && savingsWalletBalance >= activeGoalTarget);
 
   /// Shows confirmation dialog then archives the goal via API and refreshes.
   Future<void> _archiveGoal(BuildContext context) async {
