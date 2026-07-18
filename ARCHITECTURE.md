@@ -1,4 +1,4 @@
-ئ<div align="center">
+<div align="center">
 
 # 🏛️ Athar-Fintech — Software Architecture
 
@@ -13,15 +13,17 @@
 1. [Architectural Philosophy](#1-architectural-philosophy)
 2. [Package Diagram](#2-package-diagram)
 3. [Class Diagram](#3-class-diagram)
-4. [Sequence Diagram — Transaction Ingestion Flow](#4-sequence-diagram--transaction-ingestion-flow)
-5. [Design Rationale — Why Layered + Facade](#5-design-rationale--why-layered--facade)
-6. [Extensibility Guidelines](#6-extensibility-guidelines)
+4. [Financial Model & Goal Lifecycle](#4-financial-model--goal-lifecycle)
+5. [Sequence Diagram — Transaction Ingestion Flow](#5-sequence-diagram--transaction-ingestion-flow)
+6. [Sequence Diagram — Goal Cancellation Flow](#6-sequence-diagram--goal-cancellation-flow)
+7. [Design Rationale — Why Layered + Facade](#7-design-rationale--why-layered--facade)
+8. [Extensibility Guidelines](#8-extensibility-guidelines)
 
 ---
 
 ## 1. Architectural Philosophy
 
-Athar-Core's backend is built on two complementary architectural decisions:
+Athar's backend is built on two complementary architectural decisions:
 
 | Decision | Purpose |
 |----------|---------|
@@ -42,7 +44,7 @@ Presentation  ──depends on──▶  Business  ──depends on──▶  Pe
 
 ## 2. Package Diagram
 
-The package diagram below shows the four top-level packages inside `backend/app/`, their internal modules, and the **allowed** dependency directions between them.
+The package diagram shows the four top-level packages inside `backend/app/`, their internal modules, and the **allowed** dependency directions between them.
 
 ```mermaid
 graph TB
@@ -53,21 +55,19 @@ graph TB
     end
 
     subgraph Business["🧠 business"]
-        B1["facades/"]
-        B2["categorization/ (Regex & Dictionary Engine)"]
-        B3["gamification/ (Oasis Rules Engine)"]
-        B4["services/"]
+        B1["facades/\n(analytics · goal · oasis · transaction)"]
+        B2["categorization/\n(Regex & Dictionary Engine)"]
+        B3["gamification/\n(Oasis Rules Engine)"]
     end
 
     subgraph Persistence["🗄️ persistence"]
-        D1["repositories/"]
+        D1["repositories/\n(goal_repo · transaction_repo)"]
         D2["supabase_client.py"]
-        D3["mappers/"]
     end
 
     subgraph Core["⚙️ core"]
         C1["config.py"]
-        C2["security.py"]
+        C2["security.py\n(ES256 JWT · PyJWT + cryptography)"]
         C3["exceptions.py"]
         C4["logging.py"]
     end
@@ -76,10 +76,8 @@ graph TB
     P2 -.->|used by| P1
     B1 -->|orchestrates| B2
     B1 -->|orchestrates| B3
-    B1 -->|orchestrates| B4
-    B4 -->|calls| D1
+    B1 -->|calls| D1
     D1 -->|uses| D2
-    D1 -->|uses| D3
 
     Presentation -.->|imports| Core
     Business -.->|imports| Core
@@ -92,57 +90,87 @@ graph TB
 ```
 
 **Key observations:**
-- Solid arrows (`──▶`) represent **hard dependencies** (calls that cross layer boundaries via the Facade).
-- Dotted arrows (`-.->`) represent **cross-cutting imports** of the `Core` package, which every layer is permitted to use.
-- `presentation` never imports from `persistence` directly — this is enforced at code-review time and can be validated with import-linting tools (e.g., `import-linter`).
+- `presentation` never imports from `persistence` directly — every cross-layer call is mediated by a Facade.
+- There are **four Facades**, each the sole public entry point of its Business module: `AnalyticsFacade`, `GoalFacade`, `OasisFacade`, `TransactionFacade`.
+- `Core` has no outbound dependencies — it is the only package that any layer can import freely.
 
 ---
 
 ## 3. Class Diagram
 
-The class diagram illustrates the core domain classes involved in transaction ingestion, focused on the **Facade Pattern** implementation.
+The class diagram illustrates the core domain classes, focused on the **Facade Pattern** implementation and the actual entity fields in the current codebase.
 
 ```mermaid
 classDiagram
     class TransactionRouter {
         +create_transaction(payload: TransactionCreateDTO) TransactionResponseDTO
+        +get_transactions(user_id: UUID) list~TransactionResponseDTO~
+    }
+
+    class GoalsRouter {
+        +get_active_goal(user_id: UUID) GoalDTO
+        +create_goal(payload: GoalCreateDTO) GoalDTO
+        +transition_goal_status(user_id, goal_id, payload: GoalStatusUpdateDTO)
+    }
+
+    class AnalyticsRouter {
+        +get_dashboard_summary(user_id: UUID) DashboardSummaryDTO
+    }
+
+    class OasisRouter {
+        +get_oasis_state(user_id: UUID) OasisStateDTO
     }
 
     class TransactionFacade {
         <<Facade>>
-        +process_and_store(payload: TransactionCreateDTO)$ TransactionResponseDTO
+        +process_and_store(payload: TransactionCreateDTO) TransactionResponseDTO
+    }
+
+    class GoalFacade {
+        <<Facade>>
+        +get_active_goal(user_id: UUID) Goal
+        +create_goal(user_id: UUID, payload) Goal
+        +transition_status(user_id, goal_id, new_status: str) Goal
+        +cancel_goal(user_id: UUID, goal_id: UUID) Goal
+    }
+
+    class AnalyticsFacade {
+        <<Facade>>
+        +get_dashboard_summary(user_id: UUID) DashboardSummaryDTO
+    }
+
+    class OasisFacade {
+        <<Facade>>
+        +get_oasis_state(user_id: UUID) OasisStateDTO
     }
 
     class CategorizationEngine {
         -rules_dictionary: dict
         -regex_patterns: list~Pattern~
-        +classify(description: str)$ CategoryEnum
-    }
-
-    class GamificationEngine {
-        -impact_rules: dict
-        +evaluate_goal_impact(transaction: Transaction, active_goal: Goal)$ OasisImpact
+        +classify(description: str, amount: Decimal) CategoryEnum
     }
 
     class TransactionRepository {
         <<Repository>>
         -supabase_client: SupabaseClient
-        +save(transaction: Transaction, category: CategoryEnum, impact: OasisImpact)$ Transaction
-        +get_by_user(user_id: str)$ list~Transaction~
+        +create_transaction(payload) Transaction
+        +get_by_user(user_id: UUID) list~Transaction~
     }
 
     class GoalRepository {
         <<Repository>>
         -supabase_client: SupabaseClient
-        +get_active_goal(user_id: str)$ Goal
-        +update_progress(goal_id: UUID, impact: OasisImpact)$ Goal
+        +get_active_goal(user_id: UUID) Goal
+        +create_goal(user_id: UUID, payload) Goal
+        +transition_goal_status(goal_id: UUID, new_status: str) Goal
+        +cancel_goal(user_id: UUID, goal_id: UUID) Goal
     }
 
     class SupabaseClient {
         <<Adapter>>
         -url: str
-        -api_key: str
-        +execute_query(query: Query) ResultSet
+        -service_key: str
+        +table(name: str) QueryBuilder
     }
 
     class Transaction {
@@ -151,65 +179,132 @@ classDiagram
         +user_id: UUID
         +description: str
         +amount: Decimal
+        +transaction_type: str
         +category: CategoryEnum
         +created_at: datetime
     }
 
     class Goal {
         <<Entity>>
-        +id: UUID
+        +goal_id: UUID
         +user_id: UUID
         +title: str
         +target_amount: Decimal
-        +allocated_budget: Decimal
-        +category: CategoryEnum
-        +deadline: date
+        +saved_amount: Decimal
         +status: GoalStatusEnum
+        +created_at: datetime
     }
 
-    class OasisImpact {
-        <<ValueObject>>
-        +growth_delta: float
-        +health_delta: float
-        +trigger_reason: str
+    class GoalStatusEnum {
+        <<Enumeration>>
+        ACTIVE
+        COMPLETED
+        CANCELLED
+        ARCHIVED
     }
 
     class CategoryEnum {
         <<Enumeration>>
+        FOOD
         GROCERIES
         UTILITIES
         ENTERTAINMENT
+        HEALTH
+        TRANSPORT
+        HOUSING
+        SHOPPING
         SAVINGS
         UNCATEGORIZED
     }
 
     TransactionRouter ..> TransactionFacade : depends on
+    GoalsRouter ..> GoalFacade : depends on
+    AnalyticsRouter ..> AnalyticsFacade : depends on
+    OasisRouter ..> OasisFacade : depends on
+
     TransactionFacade ..> CategorizationEngine : orchestrates
-    TransactionFacade ..> GamificationEngine : orchestrates
     TransactionFacade ..> TransactionRepository : orchestrates
-    TransactionFacade ..> GoalRepository : retrieves active goal
+
+    GoalFacade ..> GoalRepository : orchestrates
+    GoalFacade ..> TransactionRepository : creates refund on cancel
+
+    AnalyticsFacade ..> TransactionRepository : reads
+    AnalyticsFacade ..> GoalRepository : reads
+    OasisFacade ..> TransactionRepository : reads
+    OasisFacade ..> GoalRepository : reads
+
     TransactionRepository --> SupabaseClient : uses
     GoalRepository --> SupabaseClient : uses
+
     TransactionRepository ..> Transaction : persists
     GoalRepository ..> Goal : persists
-    GamificationEngine ..> Goal : evaluates against
-    GamificationEngine ..> OasisImpact : produces
+
     CategorizationEngine ..> CategoryEnum : produces
     Transaction --> CategoryEnum : has
-    Goal --> CategoryEnum : has
+    Goal --> GoalStatusEnum : has
 ```
 
 **Key observations:**
-- `TransactionFacade` is annotated `<<Facade>>` — it is the **only** class the Presentation layer is aware of within the Business layer.
-- `TransactionRepository` and `GoalRepository` are annotated `<<Repository>>` and are the **only** classes permitted to speak to `SupabaseClient`.
-- `GamificationEngine.evaluate_goal_impact()` takes the incoming `Transaction` **and** the user's currently `active_goal` (a `Goal` entity), rather than reacting to the transaction in isolation. This ties every Oasis change directly to progress against a concrete, user-defined objective.
-- `OasisImpact` is a lightweight **Value Object** — immutable, and produced purely as a function of `(Transaction, Goal)`, keeping the Gamification Engine stateless and easily testable.
+- `GoalFacade.cancel_goal()` is distinct from `transition_status()` — it atomically updates the goal's status to `CANCELLED` **and** inserts a refund `INCOME` transaction into the Current Account, restoring the user's spending balance.
+- `AnalyticsFacade` computes the **Two-Ledger** balance model (see Section 4) — it never reads a stored "current balance" field; it derives it from baseline constants and transaction aggregates.
+- `Goal` does **not** have a `category` or `deadline` field — goal adherence is measured purely through the savings wallet balance vs. the target amount.
+- `CategoryEnum` has exactly **10 values** — the single source of truth in `backend/app/business/categorization/models.py`, mirrored to Flutter as `AppCategory` in `models.dart`.
 
 ---
 
-## 4. Sequence Diagram — Transaction Ingestion Flow
+## 4. Financial Model & Goal Lifecycle
 
-This sequence diagram traces a single incoming transaction from the API boundary through categorization, gamification evaluation, and persistence — the canonical example of the Facade orchestrating a multi-step Business operation.
+### 4.1 Two-Ledger Balance Model
+
+Athar never stores a user's current balance as a literal database field. Instead, two virtual ledgers are computed on every dashboard request:
+
+| Ledger | Formula | Baseline (SAR) |
+|--------|---------|----------------|
+| **Current Account** | `Baseline + Σ INCOME transactions − Σ EXPENSE transactions` | 8,500 |
+| **Savings Wallet** | `Baseline + active_goal.saved_amount` | 15,000 |
+
+**Why this matters architecturally:**
+- Balance is always derived from raw transaction data — no risk of ledger drift between the balance field and the actual transaction history.
+- The `AnalyticsFacade` is the **single source of truth** for both ledgers. The Dashboard screen and the Oasis (farm) tab both consume `DashboardSummaryDTO` from the same endpoint — guaranteeing that wallet balance, palm count, and health filter are always in sync across tabs.
+
+### 4.2 Oasis Health Score & Daily Rate of Savings (DRS)
+
+```
+DRS = monthly_income − monthly_expenses − fixed_obligations − (10% safety_buffer)
+
+oasis_health_score = clamp(0, 100, DRS / income × 100)
+```
+
+Palm count (1–9) and the CSS health filter applied to the Spline scene are derived **exclusively** from `DashboardSummaryDTO.oasisHealthScore` and the wallet-to-target ratio — never from a separate Oasis-specific API call.
+
+### 4.3 Goal Lifecycle
+
+All goal state transitions go through `PATCH /goals/{user_id}/{goal_id}/status`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE : POST /goals (create)
+    ACTIVE --> COMPLETED : wallet_balance ≥ target\n(user confirms)
+    ACTIVE --> CANCELLED : user exits early\n(refund INCOME auto-created)
+    ACTIVE --> ARCHIVED : legacy alias → treated as COMPLETED
+    COMPLETED --> [*]
+    CANCELLED --> [*]
+    ARCHIVED --> [*]
+```
+
+| Status | Trigger | Financial Side-Effect |
+|--------|---------|----------------------|
+| `COMPLETED` | `savings_wallet_balance >= target_amount` | Goal moves to history; wallet balance stays |
+| `CANCELLED` | User requests cancellation | `saved_amount` refunded as an INCOME transaction to Current Account; Oasis resets to single palm |
+| `ARCHIVED` | Legacy path | Identical to COMPLETED — no financial effect |
+
+**Implementation note:** `CANCELLED` transitions bypass the Supabase RPC (which only handles ACTIVE→COMPLETED) and use a direct table-level `UPDATE` in `GoalRepository.cancel_goal()`, followed by an atomic `TransactionRepository.create_transaction()` to record the refund.
+
+---
+
+## 5. Sequence Diagram — Transaction Ingestion Flow
+
+This diagram traces a single incoming transaction from the API boundary through categorization and persistence — the canonical example of the Facade orchestrating a multi-step Business operation.
 
 ```mermaid
 sequenceDiagram
@@ -218,8 +313,6 @@ sequenceDiagram
     participant Router as 🎤 TransactionRouter
     participant Facade as 🧩 TransactionFacade
     participant CatEngine as 🔍 CategorizationEngine
-    participant GoalRepo as 🎯 GoalRepository
-    participant GamEngine as 🌴 GamificationEngine
     participant Repo as 🗄️ TransactionRepository
     participant DB as ☁️ Supabase (PostgreSQL)
 
@@ -228,86 +321,123 @@ sequenceDiagram
     Router->>Facade: process_and_store(payload)
     activate Facade
 
-    Facade->>CatEngine: classify(payload.description)
+    Facade->>CatEngine: classify(description, amount)
     activate CatEngine
+    Note over CatEngine: Bilingual regex + dictionary rules.<br/>No external API — fully offline.
     CatEngine-->>Facade: CategoryEnum
     deactivate CatEngine
 
-    Facade->>GoalRepo: get_active_goal(payload.user_id)
-    activate GoalRepo
-    GoalRepo-->>Facade: Goal (active_goal)
-    deactivate GoalRepo
-
-    Facade->>GamEngine: evaluate_goal_impact(payload, active_goal)
-    activate GamEngine
-    Note over GamEngine: Compares transaction against<br/>active_goal's allocated budget/category —<br/>no active goal ⇒ no Oasis impact.
-    GamEngine-->>Facade: OasisImpact
-    deactivate GamEngine
-
-    Facade->>Repo: save(payload, category, impact)
+    Facade->>Repo: create_transaction(payload, category)
     activate Repo
-    Repo->>DB: INSERT transaction record
+    Repo->>DB: INSERT into transactions
     activate DB
     DB-->>Repo: persisted row
     deactivate DB
-    Repo-->>Facade: Transaction (persisted)
+    Repo-->>Facade: Transaction
     deactivate Repo
 
     Facade-->>Router: TransactionResponseDTO
     deactivate Facade
-    Router-->>Client: 201 Created (JSON response)
+    Router-->>Client: 201 Created (JSON)
     deactivate Router
 ```
 
 **Key observations:**
-- The **Router never talks to the Repository, the Categorization Engine, the Goal Repository, or the Gamification Engine directly** — every call is mediated by the Facade.
-- Before invoking the Gamification Engine, the Facade fetches the user's **currently active `Goal`** via `GoalRepository.get_active_goal()`. If no goal is active, the Gamification Engine short-circuits with a neutral `OasisImpact` — the Oasis simply does not react to un-goaled spending.
-- All four business operations (`classify`, `get_active_goal`, `evaluate_goal_impact`, `save`) execute as a single logical transaction from the client's perspective, even though they involve four internal collaborators.
-- This flow is fully **offline-capable up to the persistence step** — no external network call occurs during categorization or goal-impact evaluation, in line with the Privacy-First USP.
+- The Router never talks to the Repository or the Categorization Engine directly — every call is mediated by the Facade.
+- Categorization is fully offline — no external API call occurs, in line with the Privacy-First design principle.
 
 ---
 
-## 5. Design Rationale — Why Layered + Facade
+## 6. Sequence Diagram — Goal Cancellation Flow
 
-### 5.1 Testability
-Each layer can be unit-tested in isolation. The `TransactionFacade` can be tested with mocked `CategorizationEngine`, `GamificationEngine`, `GoalRepository`, and `TransactionRepository` collaborators — no database or HTTP server required.
+Goal cancellation is the most complex business operation: it must atomically transition the goal status **and** create a refund transaction so the user's current account balance is immediately restored.
 
-### 5.2 Goal-Driven Gamification (Not Blind Reactivity)
-The Gamification Engine does not blindly react to every transaction. Instead, it evaluates how a transaction impacts the user's **active Financial Goal** (e.g., spending from the allocated goal budget vs. depositing into savings). It produces an `OasisImpact` — growth or decay — **only based on goal adherence**, never as a generic side effect of spending in general.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as 📱 Flutter Client
+    participant Router as 🎤 GoalsRouter
+    participant Facade as 🧩 GoalFacade
+    participant GoalRepo as 🎯 GoalRepository
+    participant TxRepo as 🗄️ TransactionRepository
+    participant DB as ☁️ Supabase (PostgreSQL)
 
-This distinction matters architecturally as much as it matters for product design:
-- `GamificationEngine.evaluate_goal_impact()` requires an explicit `active_goal: Goal` parameter — there is no code path that produces an `OasisImpact` without one.
-- If a user has no active goal, the Facade still persists the transaction normally, but the Gamification Engine is invoked with a neutral/no-op path, so the Oasis remains visually stable rather than reacting to noise.
-- This keeps the Oasis meaningful as a **progress visualization tied to intent** (a goal the user set), rather than a generic mood-ring reaction to every coffee purchase.
+    Client->>Router: PATCH /goals/{user_id}/{goal_id}/status\n{new_status: "CANCELLED"}
+    activate Router
+    Router->>Facade: cancel_goal(user_id, goal_id)
+    activate Facade
 
-### 5.3 Replaceability
-Because `Presentation` only knows about `TransactionFacade`'s public method signature, the entire Business or Persistence layer can be re-implemented (e.g., swapping Supabase for another Postgres provider) with **zero changes to the Presentation layer or API contract**.
+    Facade->>GoalRepo: get_active_goal(user_id)
+    activate GoalRepo
+    GoalRepo-->>Facade: Goal (saved_amount, target_amount)
+    deactivate GoalRepo
 
-### 5.4 Reduced Cognitive Load
-Developers working in Presentation never need to understand categorization rules or gamification logic — they only need to know the Facade's method signatures. This is critical for a small team (3 engineers) working across distinct focus areas concurrently.
+    Facade->>GoalRepo: cancel_goal(user_id, goal_id)
+    activate GoalRepo
+    Note over GoalRepo: Direct table UPDATE (bypasses RPC<br/>which only handles ACTIVE→COMPLETED)
+    GoalRepo->>DB: UPDATE goals SET status='CANCELLED'
+    activate DB
+    DB-->>GoalRepo: updated row
+    deactivate DB
+    GoalRepo-->>Facade: Goal (status=CANCELLED)
+    deactivate GoalRepo
 
-### 5.5 Enforced Boundaries at Review Time
-Because the pattern is structural (folder-enforced), code review can quickly catch violations: any `import` statement inside `presentation/` that reaches into `persistence/` or bypasses a Facade is an immediate red flag.
+    Facade->>TxRepo: create_transaction(refund_payload)
+    activate TxRepo
+    Note over TxRepo: type=INCOME, category=SAVINGS,<br/>amount=saved_amount (refund)
+    TxRepo->>DB: INSERT into transactions
+    activate DB
+    DB-->>TxRepo: persisted row
+    deactivate DB
+    TxRepo-->>Facade: Transaction (refund)
+    deactivate TxRepo
 
-### 5.6 Alignment with Team Structure (Conway's Law)
-The architecture intentionally mirrors the team's ownership boundaries:
+    Facade-->>Router: Goal (CANCELLED)
+    deactivate Facade
+    Router-->>Client: 200 OK
+    deactivate Router
+```
+
+**Key observations:**
+- The refund INCOME transaction is created **in the same Facade call** as the goal cancellation — if either step fails, the error surfaces immediately and neither side-effect is silently applied.
+- After cancellation, `AnalyticsFacade.get_dashboard_summary()` will naturally reflect the refunded amount in the Current Account balance (through the Two-Ledger formula), and the Oasis resets to a single palm because `active_goal_target = 0`.
+
+---
+
+## 7. Design Rationale — Why Layered + Facade
+
+### 7.1 Testability
+Each layer can be unit-tested in isolation. Any Facade can be tested with mocked Repository and Engine collaborators — no database or HTTP server required.
+
+### 7.2 Single Source of Truth for Financial Data
+`AnalyticsFacade.get_dashboard_summary()` is the **only** code path that computes balances. Both the Dashboard screen and the Oasis tab fetch from this endpoint — there is no separate "oasis balance" endpoint that could drift out of sync. This is enforced by the architecture: the Oasis tab's `farm_screen.dart` calls `getDashboardSummary()`, not a separate oasis-specific calculation.
+
+### 7.3 Replaceability
+Because `Presentation` only knows about Facade method signatures, the entire Business or Persistence layer can be re-implemented (e.g., swapping Supabase for another PostgreSQL provider) with **zero changes to the Presentation layer or API contract**.
+
+### 7.4 Privacy-First Categorization
+The `CategorizationEngine` is a pure in-process function — no network call, no external AI API. Financial transaction data never leaves the infrastructure boundary for classification purposes. This is enforced structurally: the engine has no HTTP client and no outbound dependencies.
+
+### 7.5 Reduced Cognitive Load for Small Teams
+Developers working in Presentation never need to understand categorization rules or gamification logic — they only need Facade method signatures. This is critical for a team of 3 engineers working across distinct focus areas concurrently.
+
+### 7.6 Alignment with Team Structure (Conway's Law)
 
 | Layer / Concern | Primary Owner |
 |------------------|----------------|
 | Business (Categorization Engine), Persistence, Core | **Alanoud Aloraydi** |
-| Flutter–Spline Integration, Gamification behavior mapping | **Reema Alshahrani** |
+| Flutter–Spline Integration, Oasis behavior mapping | **Reema Alshahrani** |
 | Flutter UI/UX | **Sarah** |
 
 ---
 
-## 6. Extensibility Guidelines
+## 8. Extensibility Guidelines
 
-When adding a new capability to Athar-Core, follow this checklist:
+When adding a new capability to Athar, follow this checklist:
 
-1. **Define the Entity/DTO** in `business/` or `persistence/models/` as appropriate.
+1. **Define the Entity/DTO** in `business/` or `presentation/schemas/` as appropriate.
 2. **Implement domain logic** in a dedicated `business/<feature>/` module — never inline it in a router.
 3. **Expose exactly one Facade method** for the new capability; do not let routers call more than one Business collaborator directly.
-4. **Add a Repository method** in `persistence/` if new data access is required — never call `SupabaseClient` from outside `persistence/`.
-5. **Write unit tests** for the Facade with mocked collaborators, plus integration tests for the Repository against a test Supabase instance.
+4. **Add a Repository method** in `persistence/repositories/` if new data access is required — never call `SupabaseClient` from outside `persistence/`.
+5. **Write unit tests** for the Facade with mocked collaborators, and Flutter widget tests for any new screen.
 6. **Update this document** — every new cross-layer flow of significance should be reflected in the Sequence Diagram section.
-

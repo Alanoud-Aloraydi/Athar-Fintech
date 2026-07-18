@@ -63,6 +63,27 @@ Strict **3-Tier Layered Architecture** (Presentation → Business → Persistenc
 
 ---
 
+## 🛠️ Tech Stack
+
+| Layer | Technology | Version | Role |
+|-------|-----------|---------|------|
+| **Backend Runtime** | Python | 3.12+ | FastAPI server runtime |
+| **API Framework** | FastAPI | latest | REST API, auto-docs (Swagger UI) |
+| **ASGI Server** | Uvicorn | latest | Production-grade async server |
+| **Frontend** | Flutter Web | 3.19+ | Cross-platform UI framework |
+| **Database** | Supabase (PostgreSQL) | — | Data persistence + Auth |
+| **Auth** | Supabase Auth + PyJWT | — | ES256 JWT verification |
+| **Cryptography** | `cryptography` (Python) | — | Required for ES256 asymmetric JWT support |
+| **Rate Limiting** | SlowAPI | — | API endpoint protection |
+| **Config** | pydantic-settings | — | Type-safe env variable loading |
+| **3D Engine** | Spline | — | 3D Oasis scene (assets vendored locally) |
+| **Internationalization** | intl (Dart) | — | Arabic/English number & date formatting |
+| **HTTP Client** | http (Dart) | — | Flutter → FastAPI API calls |
+
+> **Note on Spline assets:** `runtime.js`, `scene.splinecode`, and all WASM modules are vendored inside `athar_frontend/assets/oasis/`. The app makes **zero CDN requests** at runtime for 3D content.
+
+---
+
 ## 🏗️ Architecture
 
 | Layer | Responsibility |
