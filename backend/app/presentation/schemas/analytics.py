@@ -181,9 +181,22 @@ class DashboardSummaryDTO(BaseModel):
     dynamic_recommended_savings: float = Field(
         default=0.0,
         description=(
-            "Dynamic Recommended Savings (DRS): net discretionary surplus × 35%. "
-            "The safe amount to deposit to the savings wallet this month."
+            "Dynamic Recommended Savings (DRS): income − expenses − fixed_obligations − safety_buffer. "
+            "The safe surplus available to deposit to savings this month."
         ),
+    )
+    # ── Explainable AI breakdown (used by the Smart Advisor UI) ─────────────
+    avg_income: float = Field(
+        default=0.0,
+        description="Current month total income — shown verbatim in the advisor explanation.",
+    )
+    fixed_obligations: float = Field(
+        default=0.0,
+        description="Fixed committed obligations (Tabby / مرابحة) deducted from the DRS.",
+    )
+    safety_buffer: float = Field(
+        default=0.0,
+        description="10% emergency reserve of income excluded from the DRS amount.",
     )
 
 

@@ -250,11 +250,15 @@ class AnalyticsFacade:
         # ── Arabic spending distribution (% per category label) ───────────
         spending_distribution = self._compute_spending_by_category(breakdown, total_expenses)
 
-        # ── Dynamic Recommended Savings (DRS) ─────────────────────────────
-        # Discretionary surplus = income − all expenses − committed obligations.
-        # DRS = 35 % of that surplus — the safe monthly deposit amount.
-        _net_discretionary = total_income - total_expenses - committed_obligations
-        dynamic_recommended_savings = round(max(0.0, _net_discretionary * 0.35), 1)
+        # ── Explainable AI: DRS breakdown ─────────────────────────────────
+        # safety_buffer = 10% of income reserved for emergencies.
+        # DRS = income − expenses − fixed obligations − safety buffer.
+        safety_buffer = round(total_income * 0.10, 1)
+        fixed_obligations_val = committed_obligations
+        _net_discretionary = (
+            total_income - total_expenses - fixed_obligations_val - safety_buffer
+        )
+        dynamic_recommended_savings = round(max(0.0, _net_discretionary), 1)
 
         return DashboardSummaryDTO(
             user_id=UUID(user_id),
@@ -279,6 +283,9 @@ class AnalyticsFacade:
             safe_to_spend_today=safe_to_spend_today,
             days_to_payday=days_to_payday,
             dynamic_recommended_savings=dynamic_recommended_savings,
+            avg_income=total_income,
+            fixed_obligations=committed_obligations,
+            safety_buffer=safety_buffer,
         )
 
     # ------------------------------------------------------------------
@@ -441,9 +448,14 @@ class AnalyticsFacade:
         EXPENSE transactions.
         """
         _CAT_AR: dict[str, str] = {
-            "ENTERTAINMENT": "طعام ومقاهي",
-            "GROCERIES": "بقالة",
-            "UTILITIES": "فواتير",
+            "FOOD": "المطاعم",
+            "GROCERIES": "المقاضي",
+            "UTILITIES": "الفواتير",
+            "ENTERTAINMENT": "الترفيه",
+            "HEALTH": "الصحة",
+            "TRANSPORT": "النقل",
+            "HOUSING": "السكن",
+            "SHOPPING": "التسوق",
             "UNCATEGORIZED": "أخرى",
         }
         if total_expenses <= 0:

@@ -31,101 +31,149 @@ class CategorizationEngine:
 
     # ── English / Latin keywords ──────────────────────────────────────────
     _en_rules: dict[str, CategoryEnum] = {
-        # Groceries
-        "panda": CategoryEnum.GROCERIES,
-        "othaim": CategoryEnum.GROCERIES,
+        # ── Food & Dining ────────────────────────────────────────────────
+        "burger king": CategoryEnum.FOOD,    # longest first for regex
+        "apple music": CategoryEnum.FOOD,    # placeholder: overridden by ENTERTAINMENT below
+        "gas station": CategoryEnum.TRANSPORT,
+        "farm superstore": CategoryEnum.GROCERIES,
+        "saudi aramco": CategoryEnum.UTILITIES,
+        "riyad bank": CategoryEnum.SAVINGS,
+        "starbucks": CategoryEnum.FOOD,
+        "restaurant": CategoryEnum.FOOD,
+        "mcdonalds": CategoryEnum.FOOD,
+        "mcdonald": CategoryEnum.FOOD,
+        "albaik": CategoryEnum.FOOD,
+        "coffee": CategoryEnum.FOOD,
+        "pizza": CategoryEnum.FOOD,
+        "shawarma": CategoryEnum.FOOD,
+        "cafe": CategoryEnum.FOOD,
+        # ── Groceries ────────────────────────────────────────────────────
         "carrefour": CategoryEnum.GROCERIES,
         "danube": CategoryEnum.GROCERIES,
         "tamimi": CategoryEnum.GROCERIES,
         "hypermarket": CategoryEnum.GROCERIES,
         "supermarket": CategoryEnum.GROCERIES,
+        "othaim": CategoryEnum.GROCERIES,
+        "panda": CategoryEnum.GROCERIES,
         "lulu": CategoryEnum.GROCERIES,
-        "farm superstore": CategoryEnum.GROCERIES,
-        # Utilities
-        "stc": CategoryEnum.UTILITIES,
-        "mobily": CategoryEnum.UTILITIES,
-        "zain": CategoryEnum.UTILITIES,
+        # ── Utilities ────────────────────────────────────────────────────
         "electricity": CategoryEnum.UTILITIES,
-        "water": CategoryEnum.UTILITIES,
         "internet": CategoryEnum.UTILITIES,
-        "saudi aramco": CategoryEnum.UTILITIES,
+        "mobily": CategoryEnum.UTILITIES,
+        "water": CategoryEnum.UTILITIES,
+        "zain": CategoryEnum.UTILITIES,
+        "stc": CategoryEnum.UTILITIES,
         "sec": CategoryEnum.UTILITIES,
-        # Entertainment
-        "starbucks": CategoryEnum.ENTERTAINMENT,
-        "netflix": CategoryEnum.ENTERTAINMENT,
-        "shahid": CategoryEnum.ENTERTAINMENT,
-        "vox": CategoryEnum.ENTERTAINMENT,
-        "muvi": CategoryEnum.ENTERTAINMENT,
-        "cinema": CategoryEnum.ENTERTAINMENT,
-        "restaurant": CategoryEnum.ENTERTAINMENT,
-        "cafe": CategoryEnum.ENTERTAINMENT,
-        "coffee": CategoryEnum.ENTERTAINMENT,
-        "gaming": CategoryEnum.ENTERTAINMENT,
+        # ── Entertainment ────────────────────────────────────────────────
         "playstation": CategoryEnum.ENTERTAINMENT,
-        "spotify": CategoryEnum.ENTERTAINMENT,
         "apple music": CategoryEnum.ENTERTAINMENT,
-        "mcdonalds": CategoryEnum.ENTERTAINMENT,
-        "mcdonald": CategoryEnum.ENTERTAINMENT,
-        "burger king": CategoryEnum.ENTERTAINMENT,
-        "kfc": CategoryEnum.ENTERTAINMENT,
-        # Savings / Investment
+        "shahid": CategoryEnum.ENTERTAINMENT,
+        "spotify": CategoryEnum.ENTERTAINMENT,
+        "cinema": CategoryEnum.ENTERTAINMENT,
+        "gaming": CategoryEnum.ENTERTAINMENT,
+        "netflix": CategoryEnum.ENTERTAINMENT,
+        "muvi": CategoryEnum.ENTERTAINMENT,
+        "vox": CategoryEnum.ENTERTAINMENT,
+        # ── Health ───────────────────────────────────────────────────────
+        "pharmacy": CategoryEnum.HEALTH,
+        "hospital": CategoryEnum.HEALTH,
+        "medical": CategoryEnum.HEALTH,
+        "clinic": CategoryEnum.HEALTH,
+        "doctor": CategoryEnum.HEALTH,
+        "nahdi": CategoryEnum.HEALTH,
+        "dawaa": CategoryEnum.HEALTH,
+        # ── Transport ────────────────────────────────────────────────────
+        "careem": CategoryEnum.TRANSPORT,
+        "petrol": CategoryEnum.TRANSPORT,
+        "fuel": CategoryEnum.TRANSPORT,
+        "taxi": CategoryEnum.TRANSPORT,
+        "uber": CategoryEnum.TRANSPORT,
+        # ── Housing ──────────────────────────────────────────────────────
+        "maintenance": CategoryEnum.HOUSING,
+        "rent": CategoryEnum.HOUSING,
+        # ── Shopping ─────────────────────────────────────────────────────
+        "namshi": CategoryEnum.SHOPPING,
+        "amazon": CategoryEnum.SHOPPING,
+        "noon": CategoryEnum.SHOPPING,
+        "zara": CategoryEnum.SHOPPING,
+        # ── Savings / Investment ─────────────────────────────────────────
+        "investment": CategoryEnum.SAVINGS,
         "murabaha": CategoryEnum.SAVINGS,
         "tadawul": CategoryEnum.SAVINGS,
-        "wafir": CategoryEnum.SAVINGS,
-        "investment": CategoryEnum.SAVINGS,
         "savings": CategoryEnum.SAVINGS,
+        "wafir": CategoryEnum.SAVINGS,
         "alinma": CategoryEnum.SAVINGS,
-        "riyad bank": CategoryEnum.SAVINGS,
         "salary": CategoryEnum.SAVINGS,
+        "kfc": CategoryEnum.FOOD,
     }
 
     # ── Arabic keywords ───────────────────────────────────────────────────
     # Checked in descending length order so longer phrases win on overlap.
     _ar_rules: dict[str, CategoryEnum] = {
-        # Savings — keep most specific phrases first in the dict
+        # ── Savings — most specific phrases first ────────────────────────
+        "صندوق الاستثمار": CategoryEnum.SAVINGS,
+        "تحويل ادخار": CategoryEnum.SAVINGS,
         "ادخار شهري": CategoryEnum.SAVINGS,
         "توفير شهري": CategoryEnum.SAVINGS,
-        "تحويل ادخار": CategoryEnum.SAVINGS,
-        "صندوق الاستثمار": CategoryEnum.SAVINGS,
         "مواد غذائية": CategoryEnum.GROCERIES,
+        "استثمار": CategoryEnum.SAVINGS,
         "ادخار": CategoryEnum.SAVINGS,
         "توفير": CategoryEnum.SAVINGS,
-        "استثمار": CategoryEnum.SAVINGS,
         "وديعة": CategoryEnum.SAVINGS,
         "راتب": CategoryEnum.SAVINGS,
-        # Groceries
-        "بقالة": CategoryEnum.GROCERIES,
+        # ── Food & Dining ────────────────────────────────────────────────
+        "كافيتريا": CategoryEnum.FOOD,
+        "كافيه": CategoryEnum.FOOD,
+        "شاورما": CategoryEnum.FOOD,
+        "مطعم": CategoryEnum.FOOD,
+        "مقهى": CategoryEnum.FOOD,
+        "قهوة": CategoryEnum.FOOD,
+        "وجبة": CategoryEnum.FOOD,
+        "برغر": CategoryEnum.FOOD,
+        "بيتزا": CategoryEnum.FOOD,
+        # ── Groceries ────────────────────────────────────────────────────
+        "تموينات": CategoryEnum.GROCERIES,
         "هايبر": CategoryEnum.GROCERIES,
         "ماركت": CategoryEnum.GROCERIES,
         "سوبر": CategoryEnum.GROCERIES,
-        "تموينات": CategoryEnum.GROCERIES,
+        "بقالة": CategoryEnum.GROCERIES,
         "خضار": CategoryEnum.GROCERIES,
-        # Utilities
-        "كهرباء": CategoryEnum.UTILITIES,
-        "مياه": CategoryEnum.UTILITIES,
-        "ماء": CategoryEnum.UTILITIES,
+        # ── Utilities ────────────────────────────────────────────────────
         "اتصالات": CategoryEnum.UTILITIES,
-        "هاتف": CategoryEnum.UTILITIES,
         "إنترنت": CategoryEnum.UTILITIES,
         "انترنت": CategoryEnum.UTILITIES,
-        "فاتورة": CategoryEnum.UTILITIES,
         "فواتير": CategoryEnum.UTILITIES,
-        # Entertainment
-        "مطعم": CategoryEnum.ENTERTAINMENT,
-        "مقهى": CategoryEnum.ENTERTAINMENT,
-        "قهوة": CategoryEnum.ENTERTAINMENT,
-        "كافيه": CategoryEnum.ENTERTAINMENT,
-        "كافيتريا": CategoryEnum.ENTERTAINMENT,
+        "فاتورة": CategoryEnum.UTILITIES,
+        "كهرباء": CategoryEnum.UTILITIES,
+        "هاتف": CategoryEnum.UTILITIES,
+        "مياه": CategoryEnum.UTILITIES,
+        "ماء": CategoryEnum.UTILITIES,
+        # ── Entertainment ────────────────────────────────────────────────
+        "نتفليكس": CategoryEnum.ENTERTAINMENT,
+        "اشتراك": CategoryEnum.ENTERTAINMENT,
         "سينما": CategoryEnum.ENTERTAINMENT,
         "ترفيه": CategoryEnum.ENTERTAINMENT,
         "ألعاب": CategoryEnum.ENTERTAINMENT,
         "العاب": CategoryEnum.ENTERTAINMENT,
-        "نتفليكس": CategoryEnum.ENTERTAINMENT,
         "شاهد": CategoryEnum.ENTERTAINMENT,
-        "اشتراك": CategoryEnum.ENTERTAINMENT,
-        "وجبة": CategoryEnum.ENTERTAINMENT,
-        "برغر": CategoryEnum.ENTERTAINMENT,
-        "بيتزا": CategoryEnum.ENTERTAINMENT,
+        # ── Health ────────────────────────────────────────────────────────
+        "مستشفى": CategoryEnum.HEALTH,
+        "صيدلية": CategoryEnum.HEALTH,
+        "عيادة": CategoryEnum.HEALTH,
+        "طبيب": CategoryEnum.HEALTH,
+        "دواء": CategoryEnum.HEALTH,
+        # ── Transport ────────────────────────────────────────────────────
+        "بنزين": CategoryEnum.TRANSPORT,
+        "وقود": CategoryEnum.TRANSPORT,
+        "تاكسي": CategoryEnum.TRANSPORT,
+        "نقل": CategoryEnum.TRANSPORT,
+        # ── Housing ──────────────────────────────────────────────────────
+        "إيجار": CategoryEnum.HOUSING,
+        "ايجار": CategoryEnum.HOUSING,
+        "صيانة": CategoryEnum.HOUSING,
+        # ── Shopping ─────────────────────────────────────────────────────
+        "ملابس": CategoryEnum.SHOPPING,
+        "تسوق": CategoryEnum.SHOPPING,
     }
 
     # Pre-sort Arabic rules longest-first so more specific phrases win.

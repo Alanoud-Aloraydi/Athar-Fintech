@@ -21,12 +21,15 @@ class FakeDashboardApi extends ApiService {
     if (fail) throw ApiException(503, 'backend down');
     return DashboardSummary(
       userId: userId,
-      currentBalance: 1500,
-      totalIncome: 3000,
-      totalExpenses: 1500,
+      currentAccountBalance: 1500,
+      savingsWalletBalance: 500,
+      currentMonthIncome: 3000,
+      currentMonthExpenses: 1500,
       netFlow: 1500,
       activeGoal: null,
-      spendingByCategory: const [],
+      activeGoalTarget: 0,
+      activeGoalProgressPct: 0,
+      spendingByCategory: const {},
       oasisGrowthScore: 4.2,
       oasisHealthScore: 75,
       insights: SmartInsights(
@@ -34,6 +37,7 @@ class FakeDashboardApi extends ApiService {
         projectedGoalCompletionDate: null,
         trajectoryMessage: 'على المسار الصحيح',
       ),
+      anomalies: const [],
     );
   }
 }

@@ -147,6 +147,7 @@ class _DashboardBody extends StatelessWidget {
         _RadarAdvisorSection(
           anomalies: data.anomalies,
           dynamicRecommendedSavings: data.dynamicRecommendedSavings,
+          fixedObligations: data.fixedObligations,
           daysToPayday: data.daysToPayday,
           fmt: fmt,
         ),
@@ -218,7 +219,7 @@ class _CurrentAccountSection extends StatelessWidget {
                 Icon(Icons.account_balance_wallet_outlined, color: Colors.white54, size: 14),
                 SizedBox(width: 6),
                 Text(
-                  'الرصيد المتاح للاستخدام اليومي',
+                  'إجمالي السيولة النقدية (الحسابات المربوطة)',
                   style: TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ]),
@@ -455,12 +456,14 @@ class _ChartLegendRow extends StatelessWidget {
 class _RadarAdvisorSection extends StatelessWidget {
   final List<String> anomalies;
   final double dynamicRecommendedSavings;
+  final double fixedObligations;
   final int daysToPayday;
   final NumberFormat fmt;
 
   const _RadarAdvisorSection({
     required this.anomalies,
     required this.dynamicRecommendedSavings,
+    required this.fixedObligations,
     required this.daysToPayday,
     required this.fmt,
   });
@@ -594,8 +597,10 @@ class _RadarAdvisorSection extends StatelessWidget {
                     border: Border.all(color: AppColors.success.withOpacity(0.20)),
                   ),
                   child: Text(
-                    'بناءً على التزاماتك ومصروفاتك، يمكنك إيداع '
-                    '${fmt.format(dynamicRecommendedSavings)} ريال هذا الشهر بأمان.',
+                    'بناءً على دخلك، وخصم التزاماتك الأساسية '
+                    '(${fmt.format(fixedObligations)} ريال) مع ترك هامش للطوارئ، '
+                    'يتبقى لك ${fmt.format(dynamicRecommendedSavings)} ريال كفائض آمن '
+                    'يمكن تحويله لمحفظة الادخار.',
                     style: const TextStyle(
                       fontSize: 14,
                       height: 1.65,
@@ -687,6 +692,48 @@ class _SavingsWalletSection extends StatelessWidget {
   });
 
   bool get _hasActiveGoal => activeGoal != null;
+  bool get _isGoalAchieved => activeGoalProgressPct >= 100;
+
+  /// Shows confirmation dialog then archives the goal via API and refreshes.
+  Future<void> _archiveGoal(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('أرشفة الهدف؟', textAlign: TextAlign.center),
+        content: const Text(
+          'سيُغلق هذا الهدف ويمكنك بعدها إنشاء هدف جديد لنخلتك.',
+          style: TextStyle(height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('تراجع'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primaryDark),
+            child: const Text('أرشفة'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await ApiService().transitionGoalStatus(
+        userId: userId,
+        goalId: activeGoal!.goalId,
+        newStatus: 'ARCHIVED',
+      );
+      onRefresh();
+    } on ApiException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.arabicMessage), backgroundColor: AppColors.danger),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -740,54 +787,108 @@ class _SavingsWalletSection extends StatelessWidget {
                   ),
                 ]),
 
-                // Goal progress (shown when there is an active goal with a target)
+                // Goal progress / achieved state
                 if (_hasActiveGoal && activeGoalTarget > 0) ...[
                   const SizedBox(height: 20),
                   const Divider(),
                   const SizedBox(height: 14),
-                  Row(children: [
-                    const Icon(Icons.flag_rounded, color: AppColors.primaryDark, size: 16),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        activeGoal!.title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: AppColors.textPrimary,
+
+                  if (_isGoalAchieved) ...[
+                    // ── Goal achieved banner ────────────────────────────────
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF8E1),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.5)),
+                      ),
+                      child: const Column(
+                        children: [
+                          Text('🏆', style: TextStyle(fontSize: 34)),
+                          SizedBox(height: 6),
+                          Text(
+                            'تم تحقيق الهدف بنجاح!',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Color(0xFF92400E),
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'أحسنت! يمكنك الآن البدء بهدف جديد 👏',
+                            style: TextStyle(fontSize: 12.5, color: Color(0xFFB45309)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    // ── In-progress goal ────────────────────────────────────
+                    Row(children: [
+                      const Icon(Icons.flag_rounded, color: AppColors.primaryDark, size: 16),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          activeGoal!.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      '${activeGoalProgressPct.toStringAsFixed(1)}٪',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryDark,
-                        fontSize: 14,
+                      Text(
+                        '${activeGoalProgressPct.toStringAsFixed(1)}٪',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryDark,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ]),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value: (activeGoalProgressPct / 100).clamp(0.0, 1.0),
+                        minHeight: 12,
+                        backgroundColor: AppColors.border,
+                        valueColor: const AlwaysStoppedAnimation(AppColors.primaryDark),
                       ),
                     ),
-                  ]),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: LinearProgressIndicator(
-                      value: (activeGoalProgressPct / 100).clamp(0.0, 1.0),
-                      minHeight: 12,
-                      backgroundColor: AppColors.border,
-                      valueColor: const AlwaysStoppedAnimation(AppColors.primaryDark),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${fmt.format(activeGoal!.savedAmount)} من ${fmt.format(activeGoalTarget)} ريال',
+                      style: AppTextStyles.small,
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${fmt.format(activeGoal!.savedAmount)} من ${fmt.format(activeGoalTarget)} ريال',
-                    style: AppTextStyles.small,
-                  ),
+                  ],
                 ],
 
                 const SizedBox(height: 20),
 
-                // Smart goal button: disabled (info) if active goal; enabled if none
-                if (_hasActiveGoal) ...[
+                // Smart goal button — 3 states: achieved / in-progress / none
+                if (_hasActiveGoal && _isGoalAchieved) ...[
+                  // Goal achieved: offer archive + new goal
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => _archiveGoal(context),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFF59E0B),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.archive_rounded),
+                      label: const Text(
+                        'أرشفة الهدف والبدء بهدف جديد',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ),
+                  ),
+                ] else if (_hasActiveGoal) ...[
+                  // Goal in-progress: block new goals
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
@@ -815,6 +916,7 @@ class _SavingsWalletSection extends StatelessWidget {
                     ),
                   ),
                 ] else ...[
+                  // No active goal: allow creating one
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(

@@ -1,0 +1,35 @@
+Act as a Lead FinTech Architect and Senior Flutter Developer. The current dashboard architecture is approved, but there are critical logical flaws, localization issues, and missing features that must be fixed immediately for our banking demo.
+
+Execute the following fixes strictly:
+
+### 1. FRONTEND: Copywriting & Localization Fixes (Flutter)
+- **Current Account Subtitle:** Change "الرصيد المتاح للاستخدام اليومي" to "إجمالي السيولة النقدية (الحسابات المربوطة)" (Total Liquid Cash - Linked Accounts).
+- **Chart & Categories Translation:** The Pie Chart currently shows English labels (Food, Bills). You must map the backend categories to Arabic before displaying them in the chart and the Radar. 
+  - Mapping: Food -> المطاعم, Bills -> الفواتير, Entertainment -> الترفيه, Groceries -> المقاضي, Transport -> النقل, Housing -> السكن, Health -> الصحة.
+
+### 2. FRONTEND: Explainable AI for Smart Advisor (Flutter & FastAPI)
+- **The Bug:** The recommendation just outputs a number without explaining the math, reducing user trust.
+- **The Fix:** Update the `DashboardSummaryDTO` to include `avg_income`, `fixed_obligations`, and `safety_buffer`. 
+- Update the Flutter UI text for the Smart Advisor to dynamically inject these values: 
+  "بناءً على دخلك، وخصم التزاماتك الأساسية ([fixed_obligations] ريال) مع ترك هامش للطوارئ، يتبقى لك [DRS] ريال كفائض آمن يمكن تحويله لمحفظة الادخار."
+
+### 3. FRONTEND & BACKEND: Goal Achieved State (The 131% Bug)
+- **The Bug:** The Savings Wallet progress bar shows "131.0%". A progress bar should never exceed 100% visually without a state change.
+- **The Fix in Flutter:** - If `savings_wallet_balance >= active_goal_target`:
+    - Cap the visual progress bar at `1.0` (100%).
+    - Change the text "نسبة الإنجاز لهدفك الادخاري" to a prominent success message: "🏆 تم تحقيق الهدف بنجاح!".
+    - Change the UI state: Hide the active progress text and show a new button: "أرشفة الهدف والبدء بهدف جديد" (Archive and start new goal).
+
+### 4. BACKEND: Standardized Global Categorization (FastAPI)
+- Update the `CategoryEnum` and the Mock Data generator to cover global FinTech standards: `Housing`, `Transport`, `Food`, `Groceries`, `Utilities`, `Entertainment`, `Health`, `Shopping`, `Savings`. Ensure the `/sync_open_banking` mock logic assigns these properly.
+
+### 5. FRONTEND: Goal History in Profile/Settings Tab (Flutter)
+- **The Missing Feature:** The user has no way to view past goals.
+- **The Fix:** In the "Profile" or "Settings" tab (create a simple one if it doesn't exist), add a section called "سجل الأهداف الادخارية" (Savings Goals History).
+- Fetch data from the `GET /goals/{user_id}/history` endpoint. 
+- Display a list of cards showing past goals with their status badges:
+  - Active (قيد التنفيذ - Green)
+  - Completed (مكتمل - Gold/Blue)
+  - Cancelled (ملغى - Red/Grey)
+
+Generate the exact updated Python API logic (for categories and explainable DTOs) and the fully updated Flutter code for the Dashboard and Profile tab. Ensure all text is perfect FinTech Arabic.

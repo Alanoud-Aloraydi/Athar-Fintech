@@ -158,6 +158,15 @@ async def sync_open_banking(
         # Savings / income
         {"description": "Alinma Instant Savings",        "amount": 300.0,  "type": "INCOME"},
         {"description": "Alinma Auto-Save Transfer",     "amount": 1000.0, "type": "INCOME"},
+        # Health
+        {"description": "Al-Dawaa Pharmacy",             "amount": 85.0,   "type": "EXPENSE"},
+        # Transport
+        {"description": "Uber Trip",                     "amount": 28.0,   "type": "EXPENSE"},
+        {"description": "Careem Ride",                   "amount": 22.0,   "type": "EXPENSE"},
+        # Shopping
+        {"description": "Amazon.sa Purchase",            "amount": 299.0,  "type": "EXPENSE"},
+        # Housing
+        {"description": "Home Maintenance Services",     "amount": 150.0,  "type": "EXPENSE"},
     ]
 
     today = _date.today().isoformat()

@@ -5,66 +5,71 @@ import 'package:flutter/material.dart';
 /// Mirrors backend `app.business.categorization.models.CategoryEnum` exactly.
 /// The backend is the single source of truth for this set — do not add
 /// values here without adding them server-side first.
-enum AppCategory { groceries, utilities, entertainment, savings, uncategorized }
+/// Mirrors backend `CategoryEnum` — global FinTech standard categories.
+/// The backend is the single source of truth; do not add values here without
+/// adding them server-side first.
+enum AppCategory {
+  food, groceries, utilities, entertainment, health, transport, housing, shopping, savings, uncategorized
+}
 
 extension AppCategoryX on AppCategory {
   static AppCategory fromApi(String value) {
-    switch (value) {
-      case 'GROCERIES':
-        return AppCategory.groceries;
-      case 'UTILITIES':
-        return AppCategory.utilities;
-      case 'ENTERTAINMENT':
-        return AppCategory.entertainment;
-      case 'SAVINGS':
-        return AppCategory.savings;
-      default:
-        return AppCategory.uncategorized;
+    switch (value.toUpperCase()) {
+      case 'FOOD':          return AppCategory.food;
+      case 'GROCERIES':     return AppCategory.groceries;
+      case 'UTILITIES':     return AppCategory.utilities;
+      case 'ENTERTAINMENT': return AppCategory.entertainment;
+      case 'HEALTH':        return AppCategory.health;
+      case 'TRANSPORT':     return AppCategory.transport;
+      case 'HOUSING':       return AppCategory.housing;
+      case 'SHOPPING':      return AppCategory.shopping;
+      case 'SAVINGS':       return AppCategory.savings;
+      default:              return AppCategory.uncategorized;
     }
   }
 
   String get apiValue {
     switch (this) {
-      case AppCategory.groceries:
-        return 'GROCERIES';
-      case AppCategory.utilities:
-        return 'UTILITIES';
-      case AppCategory.entertainment:
-        return 'ENTERTAINMENT';
-      case AppCategory.savings:
-        return 'SAVINGS';
-      case AppCategory.uncategorized:
-        return 'UNCATEGORIZED';
+      case AppCategory.food:          return 'FOOD';
+      case AppCategory.groceries:     return 'GROCERIES';
+      case AppCategory.utilities:     return 'UTILITIES';
+      case AppCategory.entertainment: return 'ENTERTAINMENT';
+      case AppCategory.health:        return 'HEALTH';
+      case AppCategory.transport:     return 'TRANSPORT';
+      case AppCategory.housing:       return 'HOUSING';
+      case AppCategory.shopping:      return 'SHOPPING';
+      case AppCategory.savings:       return 'SAVINGS';
+      case AppCategory.uncategorized: return 'UNCATEGORIZED';
     }
   }
 
   String get label {
     switch (this) {
-      case AppCategory.groceries:
-        return 'بقالة وتموين';
-      case AppCategory.utilities:
-        return 'فواتير وخدمات';
-      case AppCategory.entertainment:
-        return 'ترفيه';
-      case AppCategory.savings:
-        return 'ادخار';
-      case AppCategory.uncategorized:
-        return 'غير مصنّف';
+      case AppCategory.food:          return 'المطاعم';
+      case AppCategory.groceries:     return 'المقاضي';
+      case AppCategory.utilities:     return 'الفواتير';
+      case AppCategory.entertainment: return 'الترفيه';
+      case AppCategory.health:        return 'الصحة';
+      case AppCategory.transport:     return 'النقل';
+      case AppCategory.housing:       return 'السكن';
+      case AppCategory.shopping:      return 'التسوق';
+      case AppCategory.savings:       return 'الادخار';
+      case AppCategory.uncategorized: return 'أخرى';
     }
   }
 
   IconData get icon {
     switch (this) {
-      case AppCategory.groceries:
-        return Icons.shopping_basket_rounded;
-      case AppCategory.utilities:
-        return Icons.receipt_long_rounded;
-      case AppCategory.entertainment:
-        return Icons.local_movies_rounded;
-      case AppCategory.savings:
-        return Icons.savings_rounded;
-      case AppCategory.uncategorized:
-        return Icons.help_outline_rounded;
+      case AppCategory.food:          return Icons.restaurant_rounded;
+      case AppCategory.groceries:     return Icons.shopping_basket_rounded;
+      case AppCategory.utilities:     return Icons.receipt_long_rounded;
+      case AppCategory.entertainment: return Icons.local_movies_rounded;
+      case AppCategory.health:        return Icons.local_hospital_rounded;
+      case AppCategory.transport:     return Icons.directions_car_rounded;
+      case AppCategory.housing:       return Icons.home_rounded;
+      case AppCategory.shopping:      return Icons.shopping_bag_rounded;
+      case AppCategory.savings:       return Icons.savings_rounded;
+      case AppCategory.uncategorized: return Icons.help_outline_rounded;
     }
   }
 }
@@ -170,6 +175,11 @@ class DashboardSummary {
   // Dynamic Recommended Savings (DRS)
   final double dynamicRecommendedSavings;
 
+  // Explainable AI: DRS breakdown components
+  final double avgIncome;
+  final double fixedObligations;
+  final double safetyBuffer;
+
   DashboardSummary({
     required this.userId,
     required this.currentAccountBalance,
@@ -193,6 +203,9 @@ class DashboardSummary {
     this.safeToSpendToday = 0.0,
     this.daysToPayday = 0,
     this.dynamicRecommendedSavings = 0.0,
+    this.avgIncome = 0.0,
+    this.fixedObligations = 0.0,
+    this.safetyBuffer = 0.0,
   });
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) => DashboardSummary(
@@ -223,6 +236,9 @@ class DashboardSummary {
         daysToPayday: (json['days_to_payday'] as num?)?.toInt() ?? 0,
         dynamicRecommendedSavings:
             (json['dynamic_recommended_savings'] as num?)?.toDouble() ?? 0.0,
+        avgIncome: (json['avg_income'] as num?)?.toDouble() ?? 0.0,
+        fixedObligations: (json['fixed_obligations'] as num?)?.toDouble() ?? 0.0,
+        safetyBuffer: (json['safety_buffer'] as num?)?.toDouble() ?? 0.0,
       );
 }
 
