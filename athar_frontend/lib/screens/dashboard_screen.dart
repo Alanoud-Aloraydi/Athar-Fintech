@@ -699,15 +699,16 @@ class _SavingsWalletSection extends StatelessWidget {
       activeGoalProgressPct >= 100 ||
       (activeGoalTarget > 0 && savingsWalletBalance >= activeGoalTarget);
 
-  /// Shows confirmation dialog then archives the goal via API and refreshes.
-  Future<void> _archiveGoal(BuildContext context) async {
+  /// Closes a completed goal and moves it to the history register.
+  Future<void> _completeGoal(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('أرشفة الهدف؟', textAlign: TextAlign.center),
+        title: const Text('إغلاق الهدف وتحويله للسجل؟',
+            textAlign: TextAlign.center),
         content: const Text(
-          'سيُغلق هذا الهدف ويمكنك بعدها إنشاء هدف جديد لنخلتك.',
+          'سيُحفظ هذا الهدف في سجل إنجازاتك المالية. يمكنك بعدها إنشاء هدف ادخاري جديد.',
           style: TextStyle(height: 1.6),
         ),
         actions: [
@@ -717,24 +718,63 @@ class _SavingsWalletSection extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.primaryDark),
-            child: const Text('أرشفة'),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.success),
+            child: const Text('إغلاق وحفظ'),
           ),
         ],
       ),
     );
     if (confirmed != true || !context.mounted) return;
+    await _callTransition(context, 'COMPLETED');
+  }
+
+  /// Cancels an active goal and refunds the saved amount to the Current Account.
+  Future<void> _cancelGoal(BuildContext context) async {
+    final refundText = savingsWalletBalance > 0
+        ? 'سيتم إعادة ${fmt.format(savingsWalletBalance)} ر.س إلى حسابك الجاري فوراً.'
+        : 'لم يتم ادخار أي مبلغ بعد؛ سيُلغى الهدف دون أي أثر مالي.';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('إلغاء الهدف واسترجاع المبلغ؟',
+            textAlign: TextAlign.center),
+        content: Text(
+          '$refundText\n\nستعود الواحة إلى نخلة واحدة بعد الإلغاء.',
+          style: const TextStyle(height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('تراجع'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            child: const Text('إلغاء الهدف'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await _callTransition(context, 'CANCELLED');
+  }
+
+  Future<void> _callTransition(BuildContext context, String status) async {
     try {
       await ApiService().transitionGoalStatus(
         userId: userId,
         goalId: activeGoal!.goalId,
-        newStatus: 'ARCHIVED',
+        newStatus: status,
       );
       onRefresh();
     } on ApiException catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.arabicMessage), backgroundColor: AppColors.danger),
+          SnackBar(
+              content: Text(e.arabicMessage),
+              backgroundColor: AppColors.danger),
         );
       }
     }
@@ -872,52 +912,46 @@ class _SavingsWalletSection extends StatelessWidget {
 
                 const SizedBox(height: 20),
 
-                // Smart goal button — 3 states: achieved / in-progress / none
+                // Smart goal button — 3 states: achieved / active / none
                 if (_hasActiveGoal && _isGoalAchieved) ...[
-                  // Goal achieved: offer archive + new goal
+                  // State 2 (Completed): close goal and move to history register.
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: () => _archiveGoal(context),
+                      onPressed: () => _completeGoal(context),
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFF59E0B),
+                        backgroundColor: AppColors.success,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
-                      icon: const Icon(Icons.archive_rounded),
+                      icon: const Icon(Icons.check_circle_outline_rounded),
                       label: const Text(
-                        'أرشفة الهدف والبدء بهدف جديد',
+                        'إغلاق الهدف وتحويله للسجل',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                       ),
                     ),
                   ),
                 ] else if (_hasActiveGoal) ...[
-                  // Goal in-progress: block new goals
-                  Container(
+                  // State 1 (Active): allow the user to cancel and reclaim funds.
+                  SizedBox(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF3C7),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFD97706).withOpacity(0.40)),
-                    ),
-                    child: const Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 18),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'يجب إكمال أو إلغاء الهدف الحالي لتبدأ هدفاً جديداً لنخلتك.',
-                            style: TextStyle(
-                              color: Color(0xFF92400E),
-                              fontSize: 13,
-                              height: 1.5,
-                            ),
-                          ),
-                        ),
-                      ],
+                    child: OutlinedButton.icon(
+                      onPressed: () => _cancelGoal(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.danger,
+                        side: BorderSide(
+                            color: AppColors.danger.withValues(alpha: 0.65)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.cancel_outlined, size: 18),
+                      label: const Text(
+                        'إلغاء الهدف واسترجاع المبلغ',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
                     ),
                   ),
                 ] else ...[

@@ -194,6 +194,46 @@ class GoalRepository:
             **self._unwrap_rpc_row(response.data, "transition_goal_status", goal_id)
         )
 
+    def cancel_goal(self, goal_id: str, user_id: str) -> GoalRecord:
+        """
+        Cancels an ACTIVE goal via a direct table UPDATE (not via the
+        `transition_goal_status` RPC, which only accepts COMPLETED/ARCHIVED).
+
+        The `.eq("status", "ACTIVE")` guard ensures we only cancel a goal that
+        is still running — if the goal is already terminal the update matches
+        zero rows and `GoalConflictError` is raised.
+
+        Args:
+            goal_id: UUID (as string) of the goal to cancel.
+            user_id: UUID (as string) of the goal's owner.
+
+        Returns:
+            The updated `GoalRecord` (status="CANCELLED", saved_amount unchanged).
+
+        Raises:
+            GoalConflictError: If the goal does not exist for this user, or is not ACTIVE.
+            PersistenceError: If the table update fails for any other reason.
+        """
+        try:
+            resp = (
+                self._client.table(_TABLE)
+                .update({"status": "CANCELLED"})
+                .eq("id", goal_id)
+                .eq("user_id", user_id)
+                .eq("status", _ACTIVE_STATUS)
+                .execute()
+            )
+        except APIError as exc:
+            raise PersistenceError(
+                f"Failed to cancel goal '{goal_id}': {exc.message}"
+            ) from exc
+
+        if not resp.data:
+            raise GoalConflictError(
+                f"Goal '{goal_id}' is not ACTIVE or does not belong to user '{user_id}'."
+            )
+        return GoalRecord(**resp.data[0])
+
     def increment_saved_amount(self, goal_id: str, amount: float) -> GoalRecord:
         """
         Atomically adds `amount` to a goal's `saved_amount` in a single

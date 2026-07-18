@@ -51,11 +51,17 @@ class GoalStatusUpdateDTO(BaseModel):
     """
     Inbound payload for `PATCH /goals/{user_id}/{goal_id}/status`.
 
-    Only `COMPLETED` and `ARCHIVED` are legal targets â€” there is no
-    supported path back to `ACTIVE` from a terminal state in this MVP.
+    Three terminal targets are supported:
+    - `COMPLETED` — goal achieved; the saved amount stays in the Savings Wallet
+      and the goal moves to history.
+    - `CANCELLED` — user exits the goal early; the saved amount is refunded back
+      to the Current Account and the Oasis resets to 1 palm.
+    - `ARCHIVED` — kept for backward compatibility; treated the same as COMPLETED.
+
+    There is no supported path back to `ACTIVE` from any terminal state.
     """
 
-    status: Literal["COMPLETED", "ARCHIVED"] = Field(
+    status: Literal["COMPLETED", "CANCELLED", "ARCHIVED"] = Field(
         description="Terminal status to transition the goal to"
     )
 

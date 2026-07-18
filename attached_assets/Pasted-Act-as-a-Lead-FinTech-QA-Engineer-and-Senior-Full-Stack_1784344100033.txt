@@ -1,0 +1,27 @@
+Act as a Lead FinTech QA Engineer and Senior Full-Stack Architect. We need to perform a strict "Integration & Reality Check" across our Flutter app and FastAPI backend. I found severe state-sync issues between the Dashboard and the Oasis (الواحة) tabs, and logical errors in the Goal Lifecycle.
+
+Execute a full sweep and fix the following immediately:
+
+### 1. BUG FIX: Global State Synchronization (Dashboard vs. Oasis)
+- **The Bug:** The Dashboard shows the Active Goal is completed (e.g., 33,000 / 20,000 SAR -> 100%), but the Oasis tab still shows the goal as incomplete and the Spline 3D scene doesn't show all 9 palms. They are out of sync.
+- **The Fix:** Both tabs MUST consume the exact same backend DTO (`DashboardSummaryDTO`). 
+- In Flutter, ensure the Oasis screen reads the exact same `savings_wallet_balance`, `active_goal_target`, and `health` variables that the Dashboard uses. If the Dashboard shows 100% completion, the Oasis must instantly reflect 100% (9 palms visible via the JS bridge).
+
+### 2. ARCHITECTURE FIX: The Goal Lifecycle & Financial Logic
+- **The Bug:** The Oasis tab has a confusing "أرشفة الهدف" (Archive Goal) button while the goal is still running. This is financially incorrect. A goal only has 3 real states: Active, Completed, or Cancelled.
+- **The Fix (FastAPI & Flutter):**
+  - **State 1 (Active):** If `savings_wallet_balance < active_goal_target`. 
+    - UI Button must be: "إلغاء الهدف واسترجاع المبلغ" (Cancel Goal & Refund) in Red text.
+    - Financial Logic: If the user clicks this, the goal status becomes `Cancelled`. The `savings_wallet_balance` goes to 0, and the money is transferred back to the `current_account_balance`. The Oasis resets (1 palm).
+  - **State 2 (Completed):** If `savings_wallet_balance >= active_goal_target`.
+    - UI Button must be: "إغلاق الهدف وتحويله للسجل" (Close Goal & Move to History) in Gold/Green text.
+    - Financial Logic: The goal status becomes `Completed`. 
+  - Update the API endpoints to handle these specific transitions and update the Flutter UI to display the correct button conditionally.
+
+### 3. REALITY CHECK: Full Codebase Audit
+Review both screens (Dashboard and Oasis) for FinTech realism:
+- Ensure NO raw backend variables are exposed to the user (No "-2.5 Health", no "1.5x Multiplier").
+- Ensure the math strictly follows the "Two-Ledger" rule: `total_wealth = current_account_balance + savings_wallet_balance`.
+- Ensure all text is premium, Sharia-compliant FinTech Arabic (e.g., use "مستشار مالي", "هامش آمن", "حساب جاري", "محفظة ادخار").
+
+Generate the corrected Python routing/logic for the Goal Lifecycle and the Flutter files (State management, Dashboard, and Oasis UI) to enforce 100% consistency.

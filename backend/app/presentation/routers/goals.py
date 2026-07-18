@@ -84,7 +84,7 @@ async def create_goal(
 @router.patch(
     "/{user_id}/{goal_id}/status",
     response_model=GoalResponseDTO,
-    summary="Transition an ACTIVE goal to COMPLETED or ARCHIVED",
+    summary="Transition an ACTIVE goal to COMPLETED, CANCELLED, or ARCHIVED",
 )
 async def transition_goal_status(
     user_id: UUID,
@@ -94,11 +94,22 @@ async def transition_goal_status(
     current_user_id: str = Depends(get_current_user_id),
 ) -> GoalResponseDTO:
     """
-    Ends a goal's ACTIVE lifecycle. Required before `create_goal` will
-    succeed for a user who already has an ACTIVE goal.
+    Ends a goal's ACTIVE lifecycle. Three terminal states are supported:
+
+    - **COMPLETED** — goal achieved; saved amount stays in the Savings Wallet.
+    - **CANCELLED** — user exits early; saved amount is refunded to the Current
+      Account as an INCOME transaction and the Oasis resets.
+    - **ARCHIVED** — alias for COMPLETED (legacy; kept for backward compat).
+
+    This call is required before `create_goal` will accept a new goal for a
+    user who already has an ACTIVE goal.
     """
     require_matching_user(str(user_id), current_user_id)
     try:
+        if payload.status == "CANCELLED":
+            return await run_in_threadpool(
+                facade.cancel_goal, str(user_id), str(goal_id)
+            )
         return await run_in_threadpool(
             facade.transition_status, str(user_id), str(goal_id), payload.status
         )

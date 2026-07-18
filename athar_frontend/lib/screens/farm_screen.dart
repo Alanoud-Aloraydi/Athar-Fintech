@@ -23,9 +23,9 @@ class _FarmScreenState extends State<FarmScreen> {
   late final ApiService _api = widget.api ?? ApiService();
   late Future<List<Object?>> _dataFuture;
 
-  // Cached after data loads — used to re-sync the scene on controller ready.
-  OasisState? _cachedOasis;
-  Goal? _cachedGoal;
+  // DashboardSummary drives the 3D scene — same data source as the Dashboard
+  // tab, ensuring perfect sync (wallet balance, goal progress, health score).
+  DashboardSummary? _cachedSummary;
   PalmOasisController? _oasisController;
 
   static final _fmt = NumberFormat('#,##0', 'ar');
@@ -40,35 +40,39 @@ class _FarmScreenState extends State<FarmScreen> {
 
   void _load() {
     _dataFuture = Future.wait<Object?>([
-      _api.getOasisState(widget.userId),
-      _api.getActiveGoal(widget.userId),
+      _api.getDashboardSummary(widget.userId), // ← canonical financial truth
+      _api.getOasisState(widget.userId),        // ← streak days only
     ]);
   }
 
   void _refresh() {
     setState(() {
-      _cachedOasis = null;
-      _cachedGoal = null;
+      _cachedSummary = null;
       _load();
     });
   }
 
   // ── 3D scene sync ─────────────────────────────────────────────────────────
 
-  /// Sends growth + health to the Spline scene.
-  /// Called whenever either the controller becomes ready OR fresh data arrives.
+  /// Sends growth + health to the Spline scene using the same wallet balance
+  /// and health score that the Dashboard tab shows — guarantees full sync.
   void _applyOasisState() {
-    final ctrl  = _oasisController;
-    final oasis = _cachedOasis;
-    if (ctrl == null || !ctrl.isSceneReady || oasis == null) return;
+    final ctrl    = _oasisController;
+    final summary = _cachedSummary;
+    if (ctrl == null || !ctrl.isSceneReady || summary == null) return;
 
-    final goal     = _cachedGoal;
-    final progress = (goal != null && goal.targetAmount > 0)
-        ? (goal.savedAmount / goal.targetAmount).clamp(0.0, 1.0)
+    final progress = summary.activeGoalTarget > 0
+        ? (summary.savingsWalletBalance / summary.activeGoalTarget).clamp(0.0, 1.0)
         : 0.0;
 
-    ctrl.updateOasisState(progress: progress, health: oasis.healthScore);
+    ctrl.updateOasisState(progress: progress, health: summary.oasisHealthScore);
   }
+
+  // ── Goal lifecycle helpers ────────────────────────────────────────────────
+
+  bool _isGoalAchieved(DashboardSummary s) =>
+      s.activeGoalProgressPct >= 100 ||
+      (s.activeGoalTarget > 0 && s.savingsWalletBalance >= s.activeGoalTarget);
 
   // ── Goal actions ──────────────────────────────────────────────────────────
 
@@ -77,18 +81,82 @@ class _FarmScreenState extends State<FarmScreen> {
     if (created != null) _refresh();
   }
 
-  Future<void> _onArchiveGoal(Goal goal) async {
+  /// Completes an achieved goal — moves it to the history register.
+  Future<void> _onCompleteGoal(String goalId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('إغلاق الهدف وتحويله للسجل؟',
+            textAlign: TextAlign.center),
+        content: const Text(
+          'سيُحفظ هذا الهدف في سجل إنجازاتك ويمكنك بعدها إنشاء هدف ادخاري جديد.',
+          style: TextStyle(height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('تراجع'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.success),
+            child: const Text('إغلاق وحفظ'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    _callTransition(goalId, 'COMPLETED');
+  }
+
+  /// Cancels an active goal and refunds the saved amount to the Current Account.
+  Future<void> _onCancelGoal(String goalId, double savedAmount) async {
+    final refundText = savedAmount > 0
+        ? 'سيتم إعادة ${_fmt.format(savedAmount)} ر.س إلى حسابك الجاري فوراً.'
+        : 'لم يتم ادخار أي مبلغ بعد؛ سيُلغى الهدف دون أي تأثير مالي.';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('إلغاء الهدف واسترجاع المبلغ؟',
+            textAlign: TextAlign.center),
+        content: Text(
+          '$refundText\n\nستعود الواحة إلى نخلة واحدة بعد الإلغاء.',
+          style: const TextStyle(height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('تراجع'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            child: const Text('إلغاء الهدف'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    _callTransition(goalId, 'CANCELLED');
+  }
+
+  Future<void> _callTransition(String goalId, String status) async {
     try {
       await _api.transitionGoalStatus(
         userId: widget.userId,
-        goalId: goal.id,
-        newStatus: 'ARCHIVED',
+        goalId: goalId,
+        newStatus: status,
       );
       _refresh();
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.arabicMessage), backgroundColor: AppColors.danger),
+          SnackBar(
+              content: Text(e.arabicMessage),
+              backgroundColor: AppColors.danger),
         );
       }
     }
@@ -137,29 +205,41 @@ class _FarmScreenState extends State<FarmScreen> {
                     );
                   }
 
-                  final oasis = snapshot.data![0] as OasisState;
-                  final goal  = snapshot.data![1] as Goal?;
+                  final summary = snapshot.data![0] as DashboardSummary;
+                  final oasis   = snapshot.data![1] as OasisState;
 
-                  // Cache data and re-sync the scene (runs after this build).
+                  // Cache and re-sync scene with canonical financial data.
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _cachedOasis = oasis;
-                    _cachedGoal  = goal;
+                    _cachedSummary = summary;
                     _applyOasisState();
                   });
+
+                  final achieved  = _isGoalAchieved(summary);
+                  final goalId    = summary.activeGoal?.goalId.toString();
+                  final savedAmt  = summary.savingsWalletBalance;
 
                   return Column(
                     children: [
                       // Section 2: الهدف المالي ──────────────────────────
                       _GoalCard(
-                        goal: goal,
-                        fmt: _fmt,
-                        onArchive:    goal != null ? () => _onArchiveGoal(goal) : null,
+                        hasGoal:       summary.activeGoal != null,
+                        isGoalAchieved: achieved,
+                        goalTitle:     summary.activeGoal?.title,
+                        savedAmount:   savedAmt,
+                        targetAmount:  summary.activeGoalTarget,
+                        fmt:           _fmt,
+                        onComplete: (achieved && goalId != null)
+                            ? () => _onCompleteGoal(goalId)
+                            : null,
+                        onCancel: (!achieved && goalId != null)
+                            ? () => _onCancelGoal(goalId, savedAmt)
+                            : null,
                         onCreateGoal: _onCreateGoal,
                       ),
                       const SizedBox(height: 14),
 
                       // Section 3: حالة الري والحيوية ────────────────────
-                      _VitalityCard(healthScore: oasis.healthScore),
+                      _VitalityCard(healthScore: summary.oasisHealthScore),
                       const SizedBox(height: 14),
 
                       // Section 4: أيام الالتزام ─────────────────────────
@@ -181,21 +261,30 @@ class _FarmScreenState extends State<FarmScreen> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _GoalCard extends StatelessWidget {
-  final Goal? goal;
+  final bool hasGoal;
+  final bool isGoalAchieved;
+  final String? goalTitle;
+  final double savedAmount;   // = savings_wallet_balance (canonical)
+  final double targetAmount;
   final NumberFormat fmt;
-  final VoidCallback? onArchive;
+  final VoidCallback? onComplete;  // achieved state → COMPLETED
+  final VoidCallback? onCancel;    // active state   → CANCELLED
   final VoidCallback onCreateGoal;
 
   const _GoalCard({
-    required this.goal,
+    required this.hasGoal,
+    required this.isGoalAchieved,
+    required this.goalTitle,
+    required this.savedAmount,
+    required this.targetAmount,
     required this.fmt,
-    required this.onArchive,
+    required this.onComplete,
+    required this.onCancel,
     required this.onCreateGoal,
   });
 
   @override
   Widget build(BuildContext context) {
-    final g = goal;
     return SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,10 +297,10 @@ class _GoalCard extends StatelessWidget {
           ]),
           const SizedBox(height: 14),
 
-          if (g != null) ...[
+          if (hasGoal) ...[
             // Goal title
             Text(
-              g.title,
+              goalTitle ?? '',
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -220,33 +309,92 @@ class _GoalCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
 
-            // Progress bar
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: LinearProgressIndicator(
-                value: (g.targetAmount > 0
-                        ? g.savedAmount / g.targetAmount
-                        : 0.0)
-                    .clamp(0.0, 1.0),
-                minHeight: 13,
-                backgroundColor: AppColors.border,
-                valueColor: const AlwaysStoppedAnimation(AppColors.primaryDark),
+            if (isGoalAchieved) ...[
+              // ── Goal achieved ────────────────────────────────────────
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: AppColors.success.withValues(alpha: 0.35)),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('🏆', style: TextStyle(fontSize: 22)),
+                    SizedBox(width: 10),
+                    Text(
+                      'تم تحقيق الهدف بنجاح!',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: AppColors.success,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-
-            // "Title — saved من target ر.س"
-            Text(
-              '${g.title} — ${fmt.format(g.savedAmount)} من ${fmt.format(g.targetAmount)} ر.س',
-              style: AppTextStyles.body,
-            ),
-            const SizedBox(height: 14),
-
-            // Archive action
-            SecondaryButton(
-              text: 'أرشفة الهدف',
-              onPressed: onArchive ?? () {},
-            ),
+              const SizedBox(height: 14),
+              // Gold/Green COMPLETED button
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onComplete,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.check_circle_outline_rounded),
+                  label: const Text(
+                    'إغلاق الهدف وتحويله للسجل',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                ),
+              ),
+            ] else ...[
+              // ── Goal in progress ────────────────────────────────────
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: (targetAmount > 0 ? savedAmount / targetAmount : 0.0)
+                      .clamp(0.0, 1.0),
+                  minHeight: 13,
+                  backgroundColor: AppColors.border,
+                  valueColor:
+                      const AlwaysStoppedAnimation(AppColors.primaryDark),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${fmt.format(savedAmount)} من ${fmt.format(targetAmount)} ر.س',
+                style: AppTextStyles.body,
+              ),
+              const SizedBox(height: 14),
+              // Red CANCELLED button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: onCancel,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: BorderSide(
+                        color: AppColors.danger.withValues(alpha: 0.6)),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.cancel_outlined, size: 18),
+                  label: const Text(
+                    'إلغاء الهدف واسترجاع المبلغ',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                ),
+              ),
+            ],
           ] else ...[
             const Text(
               'لا يوجد هدف نشط حالياً — أضف هدفاً ليعكس نمو واحتك تقدّمك نحوه',
@@ -254,7 +402,7 @@ class _GoalCard extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             PrimaryButton(
-              text: 'إضافة هدف جديد',
+              text: 'إضافة هدف ادخاري جديد',
               onPressed: onCreateGoal,
               icon: Icons.add_rounded,
             ),

@@ -78,8 +78,12 @@ def get_transaction_facade(
 
 def get_goal_facade(
     goal_repository: GoalRepository = Depends(get_goal_repository),
+    transaction_repository: TransactionRepository = Depends(get_transaction_repository),
 ) -> GoalFacade:
-    return GoalFacade(goal_repository=goal_repository)
+    return GoalFacade(
+        goal_repository=goal_repository,
+        transaction_repository=transaction_repository,
+    )
 
 
 def get_analytics_facade(
