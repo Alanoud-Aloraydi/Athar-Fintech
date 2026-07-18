@@ -220,9 +220,9 @@ Backend: FastAPI endpoints are covered by the Swagger UI and manual integration 
 
 | Member | Role | Focus Area |
 |--------|------|------------|
-| **Alanoud Aloraydi** | 🔧 Backend Engineer | FastAPI, Persistence, Categorization Engine |
+| **Alanoud Aloraydi** | 🔧 Backend Engineer & Integration | FastAPI, Persistence, Categorization Engine |
 | **Sarah** | 🎨 Frontend Engineer | Flutter UI/UX & Design |
-| **Reema Alshahrani** | 🎮 Integration & Gamification | Flutter–Spline Integration & 3D Oasis Logic |
+| **Reema Alshahrani** | 🎮 Gamification | Flutter–Spline Integration & 3D Oasis Logic |
 
 </div>
 
