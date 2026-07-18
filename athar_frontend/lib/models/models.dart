@@ -152,6 +152,11 @@ class DashboardSummary {
   final double spendingVolatility;
   final String nudgeMessage;
 
+  // Income-aware liquidity metrics (P1)
+  final double committedObligations; // Tabby / مرابحة / التزامات
+  final double safeToSpendToday;    // Daily safe amount until payday
+  final int daysToPayday;           // Days until the 27th
+
   DashboardSummary({
     required this.userId,
     required this.currentBalance,
@@ -168,6 +173,9 @@ class DashboardSummary {
     this.trajectoryDelayMonths = 0.0,
     this.spendingVolatility = 0.0,
     this.nudgeMessage = '',
+    this.committedObligations = 0.0,
+    this.safeToSpendToday = 0.0,
+    this.daysToPayday = 0,
   });
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) => DashboardSummary(
@@ -188,6 +196,9 @@ class DashboardSummary {
         trajectoryDelayMonths: (json['trajectory_delay_months'] as num?)?.toDouble() ?? 0.0,
         spendingVolatility: (json['spending_volatility'] as num?)?.toDouble() ?? 0.0,
         nudgeMessage: (json['nudge_message'] as String?) ?? '',
+        committedObligations: (json['committed_obligations'] as num?)?.toDouble() ?? 0.0,
+        safeToSpendToday: (json['safe_to_spend_today'] as num?)?.toDouble() ?? 0.0,
+        daysToPayday: (json['days_to_payday'] as num?)?.toInt() ?? 0,
       );
 }
 

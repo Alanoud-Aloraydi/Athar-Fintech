@@ -140,6 +140,7 @@ class InsightsEngine:
         all_transactions: list,
         recent_transactions: list,
         oasis_health_score: float,
+        total_income: float = 0.0,
     ) -> list[str]:
         """
         Privacy-first, offline Z-Score anomaly detector — leave-one-out variant.
@@ -216,10 +217,21 @@ class InsightsEngine:
                 if oasis_health_score < 80
                 else ""
             )
-            anomalies.append(
-                f"⚠️ إنفاق غير معتاد: دفعت {txn.amount:.0f} ريال في ({desc}). "
-                f"هذا يتجاوز متوسط صرفك المعتاد على {category_ar} ({mu:.0f} ريال).{health_note}"
-            )
+
+            # Income-relative severity metric — shows the anomaly as a
+            # percentage of monthly income for clearer user impact.
+            if total_income > 0.0:
+                severity_pct = (txn.amount / total_income) * 100.0
+                anomalies.append(
+                    f"⚠️ إنفاق غير معتاد: دفعت {txn.amount:.0f} ريال في ({desc}). "
+                    f"هذا يمثل {severity_pct:.1f}٪ من دخلك الشهري، "
+                    f"وهو أعلى من متوسطك المعتاد على {category_ar} ({mu:.0f} ريال).{health_note}"
+                )
+            else:
+                anomalies.append(
+                    f"⚠️ إنفاق غير معتاد: دفعت {txn.amount:.0f} ريال في ({desc}). "
+                    f"هذا يتجاوز متوسط صرفك المعتاد على {category_ar} ({mu:.0f} ريال).{health_note}"
+                )
 
         return anomalies
 

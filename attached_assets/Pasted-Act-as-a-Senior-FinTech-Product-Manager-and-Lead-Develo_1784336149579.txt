@@ -1,0 +1,24 @@
+Act as a Senior FinTech Product Manager and Lead Developer. I received an expert audit of our app, and we need to implement the highest priority items (P0 & P1) immediately for our Alinma Bank Hackathon demo.
+
+Execute the following updates across the FastAPI backend and Flutter frontend:
+
+### 1. BACKEND: KSA Mock Data Engine Update (FastAPI)
+Update the `/sync_open_banking` endpoint to inject these specific, culturally accurate transactions:
+- **Income/Salary:** Add a massive credit transaction (e.g., 18,000 SAR) labeled "Salary Transfer - WPS" matching the 27th of the month behavior.
+- **BNPL (Buy Now Pay Later):** Add a transaction labeled "Tabby Installment" (e.g., 250 SAR). Categorize it as "Committed Obligations".
+- **Family Support:** Add a transfer labeled "Monthly Family Transfer" (e.g., 1,500 SAR). Exclude this entirely from the Z-score anomaly pool.
+- **Auto-Save:** Add "Alinma Instant Savings" (e.g., 300 SAR). Count this positively toward the Oasis health.
+
+### 2. BACKEND: The Income-Aware Algorithm (FastAPI)
+- Calculate `Total_Income` from the salary transaction.
+- Update `DashboardSummaryDTO` to include: `total_income`, `safe_to_spend_today`, and `days_to_payday`.
+- **Math for Safe-to-Spend:** (Total Income - Total Spent - Committed Obligations) / Days remaining until the 27th of the current/next month.
+- **Income-Relative Severity:** When calculating the Z-Score, add a secondary metric: `severity_ratio = (Transaction Amount / Total Income) * 100`. 
+- Update the `anomalies` text to include both metrics. Example: "⚠️ إنفاق غير معتاد: دفعت 150 ريال في المقهى. هذا يمثل 0.8% من دخلك الشهري، وهو أعلى من متوسطك المعتاد!"
+
+### 3. FRONTEND: UI Expansion for Liquidity (Flutter)
+- **Header Strip:** Above the Wallet Balance, add a slim, elegant summary strip: "الدخل: 18,000 ريال | المنصرف: 45% | المدخر: 15%".
+- **Safe-to-Spend Widget:** Add a highly visible, actionable card under the header called "المصروف اليومي الآمن" (Safe to Spend Today). Display the calculated daily safe amount in a large font. Example: "يمكنك صرف 250 ريال اليوم بأمان حتى يوم الراتب (بعد 12 يوم)".
+- Ensure all copy is Sharia-compliant (never use words like "Interest" or "Debt", use "مرابحة" or "التزامات").
+
+Generate the exact updated Python and Dart files. Make sure the math dynamically reads from the mock salary injected in the backend.

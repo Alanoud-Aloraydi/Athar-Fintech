@@ -91,7 +91,7 @@ class DashboardSummaryDTO(BaseModel):
     Outbound response for the unified `GET /analytics/{user_id}` endpoint —
     everything the Flutter dashboard needs in a single call: balance, active
     goal progress, expense breakdown, Oasis scores, Smart Insights, plus the
-    Open Banking-derived Trajectory and Volatility metrics.
+    Open Banking-derived Trajectory, Volatility, and Liquidity metrics.
     """
 
     user_id: UUID
@@ -133,6 +133,26 @@ class DashboardSummaryDTO(BaseModel):
     nudge_message: str = Field(
         default="",
         description="Dynamic Arabic nudge generated from volatility and trajectory deviation.",
+    )
+
+    # --- Liquidity / Income-Aware metrics ----------------------------------
+    committed_obligations: float = Field(
+        default=0.0,
+        description=(
+            "Sum of BNPL / installment EXPENSE transactions (e.g. Tabby). "
+            "Sharia-compliant — displayed as 'التزامات' never 'ديون'."
+        ),
+    )
+    safe_to_spend_today: float = Field(
+        default=0.0,
+        description=(
+            "Daily safe amount: (total_income − total_expenses) ÷ days_to_payday. "
+            "Zero when days_to_payday is unknown or income is zero."
+        ),
+    )
+    days_to_payday: int = Field(
+        default=0,
+        description="Calendar days remaining until the 27th of the current (or next) month.",
     )
 
 

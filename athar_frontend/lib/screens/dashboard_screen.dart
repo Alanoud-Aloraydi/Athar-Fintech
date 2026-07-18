@@ -113,6 +113,26 @@ class _DashboardBody extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 48),
       children: [
+        // ── Income Header Strip ────────────────────────────────────────
+        if (data.totalIncome > 0)
+          _IncomeHeaderStrip(
+            totalIncome: data.totalIncome,
+            totalExpenses: data.totalExpenses,
+            fmt: fmt,
+          ),
+        if (data.totalIncome > 0) const SizedBox(height: 12),
+
+        // ── Safe-to-Spend Card ─────────────────────────────────────────
+        if (data.safeToSpendToday > 0 && data.daysToPayday > 0) ...[
+          _SafeToSpendCard(
+            safeToSpend: data.safeToSpendToday,
+            daysToPayday: data.daysToPayday,
+            committedObligations: data.committedObligations,
+            fmt: fmt,
+          ),
+          const SizedBox(height: 12),
+        ],
+
         // ── Section 1: رصيد محفظة الإنماء ────────────────────────────
         _WalletSection(
           balance: data.currentBalance,
@@ -156,6 +176,187 @@ class _DashboardBody extends StatelessWidget {
           fmt: fmt,
         ),
       ],
+    );
+  }
+}
+
+// ─── Income Header Strip ─────────────────────────────────────────────────────
+
+class _IncomeHeaderStrip extends StatelessWidget {
+  final double totalIncome, totalExpenses;
+  final NumberFormat fmt;
+  const _IncomeHeaderStrip(
+      {required this.totalIncome,
+      required this.totalExpenses,
+      required this.fmt});
+
+  @override
+  Widget build(BuildContext context) {
+    final spentPct = totalIncome > 0
+        ? (totalExpenses / totalIncome * 100).clamp(0.0, 100.0)
+        : 0.0;
+    final savedPct =
+        totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome * 100).clamp(0.0, 100.0) : 0.0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.primaryDark,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _StripItem(
+              label: 'الدخل',
+              value: fmt.format(totalIncome),
+              color: Colors.white),
+          Container(width: 1, height: 28, color: Colors.white30),
+          _StripItem(
+              label: 'المنصرف',
+              value: '${spentPct.toStringAsFixed(0)}٪',
+              color: const Color(0xFFFCA5A5)),
+          Container(width: 1, height: 28, color: Colors.white30),
+          _StripItem(
+              label: 'المدخر',
+              value: '${savedPct.toStringAsFixed(0)}٪',
+              color: const Color(0xFF86EFAC)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StripItem extends StatelessWidget {
+  final String label, value;
+  final Color color;
+  const _StripItem(
+      {required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(value,
+            style: TextStyle(
+                color: color, fontWeight: FontWeight.bold, fontSize: 14.5)),
+        const SizedBox(height: 2),
+        Text(label,
+            style: const TextStyle(
+                color: Colors.white60, fontSize: 11, height: 1)),
+      ],
+    );
+  }
+}
+
+// ─── Safe-to-Spend Card ───────────────────────────────────────────────────────
+
+class _SafeToSpendCard extends StatelessWidget {
+  final double safeToSpend, committedObligations;
+  final int daysToPayday;
+  final NumberFormat fmt;
+  const _SafeToSpendCard({
+    required this.safeToSpend,
+    required this.committedObligations,
+    required this.daysToPayday,
+    required this.fmt,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFC9A227), Color(0xFFE3B84A)],
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(children: [
+            const Icon(Icons.account_balance_wallet_outlined,
+                color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            const Text(
+              'المصروف اليومي الآمن',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14),
+            ),
+            const Spacer(),
+            // Payday countdown chip
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.20),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                'الراتب بعد $daysToPayday يوم',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 10),
+
+          // Big amount
+          Text(
+            fmt.format(safeToSpend),
+            style: const TextStyle(
+                fontSize: 42,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                height: 1),
+          ),
+          const Text(
+            'ريال / اليوم',
+            style: TextStyle(color: Colors.white70, fontSize: 12.5),
+          ),
+          const SizedBox(height: 12),
+
+          // Tip banner
+          Container(
+            width: double.infinity,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              'يمكنك صرف ${fmt.format(safeToSpend)} ريال اليوم بأمان حتى يوم الراتب (بعد $daysToPayday يوم)',
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 12.5, height: 1.55),
+            ),
+          ),
+
+          // Committed obligations note (if any)
+          if (committedObligations > 0) ...[
+            const SizedBox(height: 10),
+            Row(children: [
+              const Icon(Icons.lock_outline_rounded,
+                  color: Colors.white60, size: 13),
+              const SizedBox(width: 5),
+              Text(
+                'التزامات شهرية (مرابحة): ${fmt.format(committedObligations)} ريال',
+                style:
+                    const TextStyle(color: Colors.white70, fontSize: 11.5),
+              ),
+            ]),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -18,6 +18,16 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
+# Descriptions containing these substrings are family-support transfers.
+# They are excluded from the Z-Score anomaly pool — a large family transfer
+# is a cultural norm in KSA, not a spending anomaly.
+_FAMILY_EXCLUSION_KEYWORDS: frozenset[str] = frozenset(
+    ("family transfer", "monthly family", "تحويل عائلي")
+)
+
+# BNPL / committed-obligation descriptions (Sharia-compliant installments).
+_COMMITTED_KEYWORDS: frozenset[str] = frozenset(("tabby", "tamara", "spotii", "postpay"))
+
 from app.business.analytics.insights_engine import InsightsEngine
 from app.business.categorization.models import CategoryEnum
 from app.core.exceptions import PersistenceError
@@ -174,13 +184,43 @@ class AnalyticsFacade:
                 ),
             )
 
-        # Anomaly detection: compare the last 48 h of transactions against
-        # the full historical baseline using Z-Score (per-category μ, σ).
+        # ── Committed obligations (BNPL / التزامات) ──────────────────────
+        # Sum of BNPL/installment expenses — excluded from safe-to-spend
+        # numerator so the user sees only truly discretionary cashflow.
+        committed_obligations = sum(
+            txn.amount
+            for txn in all_transactions
+            if txn.type == _EXPENSE
+            and any(kw in txn.description.lower() for kw in _COMMITTED_KEYWORDS)
+        )
+
+        # ── Liquidity metrics ──────────────────────────────────────────
+        days_to_payday = self._days_to_payday()
+        safe_to_spend_today = self._safe_to_spend(
+            total_income, total_expenses, days_to_payday
+        )
+
+        # ── Anomaly detection ──────────────────────────────────────────
+        # Strip family-support transfers from the anomaly pool — a large
+        # family transfer is a cultural norm in KSA, not a Z-Score spike.
         anomaly_since = datetime.now(timezone.utc) - timedelta(hours=48)
-        very_recent = self._transaction_repository.get_transactions_since(user_id, anomaly_since)
+        very_recent_raw = self._transaction_repository.get_transactions_since(
+            user_id, anomaly_since
+        )
+        very_recent = [
+            txn
+            for txn in very_recent_raw
+            if not any(kw in txn.description.lower() for kw in _FAMILY_EXCLUSION_KEYWORDS)
+        ]
+        all_for_anomaly = [
+            txn
+            for txn in all_transactions
+            if not any(kw in txn.description.lower() for kw in _FAMILY_EXCLUSION_KEYWORDS)
+        ]
+
         current_health = oasis_state.health_score if oasis_state else 100.0
         anomalies = self._insights_engine.detect_anomalies(
-            all_transactions, very_recent, current_health
+            all_for_anomaly, very_recent, current_health, total_income
         )
 
         trajectory_deviation, trajectory_delay_months = self._calculate_trajectory(active_goal)
@@ -205,11 +245,51 @@ class AnalyticsFacade:
             trajectory_delay_months=trajectory_delay_months,
             spending_volatility=spending_volatility,
             nudge_message=nudge_message,
+            committed_obligations=committed_obligations,
+            safe_to_spend_today=safe_to_spend_today,
+            days_to_payday=days_to_payday,
         )
 
     # ------------------------------------------------------------------
     # Open Banking analytics helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _days_to_payday(today: date | None = None) -> int:
+        """
+        Calendar days until the 27th of the current (or next) month.
+
+        Saudi WPS salaries are credited on the 27th.  If today IS the 27th,
+        returns 0 (payday is now).  If past the 27th, counts to next month's 27th.
+        """
+        if today is None:
+            today = date.today()
+        payday = 27
+        if today.day <= payday:
+            return payday - today.day
+        # Past the 27th — jump to next month.
+        if today.month == 12:
+            next_27 = date(today.year + 1, 1, payday)
+        else:
+            next_27 = date(today.year, today.month + 1, payday)
+        return (next_27 - today).days
+
+    @staticmethod
+    def _safe_to_spend(
+        total_income: float,
+        total_expenses: float,
+        days_to_payday: int,
+    ) -> float:
+        """
+        Daily safe-to-spend = (income − expenses) ÷ days_to_payday.
+
+        Returns 0 when income is zero or payday has already passed (days=0).
+        Never negative — clamped to zero so the UI always shows ≥ 0.
+        """
+        if total_income <= 0 or days_to_payday <= 0:
+            return 0.0
+        remaining = total_income - total_expenses
+        return round(max(0.0, remaining / days_to_payday), 1)
 
     @staticmethod
     def _calculate_trajectory(active_goal) -> tuple[float, float]:

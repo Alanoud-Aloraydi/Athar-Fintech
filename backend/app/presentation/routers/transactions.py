@@ -112,41 +112,52 @@ async def sync_open_banking(
     from datetime import date as _date
 
     # ── Permanent baseline transactions ───────────────────────────────
-    # These use date-free idempotency keys so they are inserted exactly
-    # once ever (idempotency stops re-insertion on subsequent syncs).
-    # They seed the Z-Score baseline for the "coffee/café" sub-category
-    # of ENTERTAINMENT, establishing a known μ ≈ 16 SAR.
+    # Date-free idempotency keys → inserted exactly once, never again.
+    # Includes:
+    #  • Five Half-Million Coffee baseline entries (μ≈16 SAR) so the
+    #    Z-Score leave-one-out fires immediately on first sync.
+    #  • The WPS salary (18,000 SAR) that drives income-aware metrics.
     _BASELINE: list[dict] = [
-        {"description": "Half Million Coffee Shop", "amount": 14.0, "type": "EXPENSE", "key": "alinma_baseline_coffee_1"},
-        {"description": "Half Million Coffee Shop", "amount": 15.0, "type": "EXPENSE", "key": "alinma_baseline_coffee_2"},
-        {"description": "Half Million Coffee Shop", "amount": 16.0, "type": "EXPENSE", "key": "alinma_baseline_coffee_3"},
-        {"description": "Half Million Coffee Shop", "amount": 17.0, "type": "EXPENSE", "key": "alinma_baseline_coffee_4"},
-        {"description": "Half Million Coffee Shop", "amount": 18.0, "type": "EXPENSE", "key": "alinma_baseline_coffee_5"},
+        # Coffee Z-Score baseline (μ=16 SAR, σ≈1.58)
+        {"description": "Half Million Coffee Shop", "amount": 14.0,    "type": "EXPENSE", "key": "alinma_baseline_coffee_1"},
+        {"description": "Half Million Coffee Shop", "amount": 15.0,    "type": "EXPENSE", "key": "alinma_baseline_coffee_2"},
+        {"description": "Half Million Coffee Shop", "amount": 16.0,    "type": "EXPENSE", "key": "alinma_baseline_coffee_3"},
+        {"description": "Half Million Coffee Shop", "amount": 17.0,    "type": "EXPENSE", "key": "alinma_baseline_coffee_4"},
+        {"description": "Half Million Coffee Shop", "amount": 18.0,    "type": "EXPENSE", "key": "alinma_baseline_coffee_5"},
+        # WPS monthly salary — drives safe-to-spend & income-relative severity
+        {"description": "Salary Transfer - WPS",   "amount": 18000.0, "type": "INCOME",  "key": "alinma_wps_salary_primary"},
     ]
 
     # ── Daily rolling transactions ─────────────────────────────────────
-    # Date-scoped keys → fresh insertion every day. The 150 SAR Elixir
-    # Bunn Coffee entry is the designed Z-Score trigger: its leave-one-out
-    # baseline will be μ=16 SAR, σ≈1.58, giving Z≈84 — well above 2.0.
+    # Date-scoped keys → fresh insertion every new calendar day.
+    # Highlights:
+    #  • Elixir Bunn Coffee (150 SAR) → Z≈84, severity≈0.8% of income.
+    #  • Tabby Installment  (250 SAR) → BNPL / committed obligation.
+    #  • Monthly Family Transfer (1,500 SAR) → excluded from Z-Score pool.
+    #  • Alinma Instant Savings (300 SAR) → boosts Oasis health.
     _MOCK: list[dict] = [
         # Entertainment / cafés & dining
-        {"description": "Starbucks Coffee Riyadh",     "amount": 45.0,   "type": "EXPENSE"},
-        {"description": "Restaurant AlBaik",            "amount": 32.0,   "type": "EXPENSE"},
-        {"description": "Netflix Monthly Subscription", "amount": 39.0,   "type": "EXPENSE"},
-        {"description": "Spotify Music",                "amount": 19.0,   "type": "EXPENSE"},
-        {"description": "VOX Cinemas",                  "amount": 75.0,   "type": "EXPENSE"},
-        # ⚡ Z-Score trigger: 150 SAR coffee vs 16 SAR baseline → anomaly
-        {"description": "Elixir Bunn Coffee",           "amount": 150.0,  "type": "EXPENSE"},
+        {"description": "Starbucks Coffee Riyadh",      "amount": 45.0,   "type": "EXPENSE"},
+        {"description": "Restaurant AlBaik",             "amount": 32.0,   "type": "EXPENSE"},
+        {"description": "Netflix Monthly Subscription",  "amount": 39.0,   "type": "EXPENSE"},
+        {"description": "Spotify Music",                 "amount": 19.0,   "type": "EXPENSE"},
+        {"description": "VOX Cinemas",                   "amount": 75.0,   "type": "EXPENSE"},
+        # ⚡ Z-Score trigger: 150 SAR coffee vs 16 SAR baseline → Z≈84
+        {"description": "Elixir Bunn Coffee",            "amount": 150.0,  "type": "EXPENSE"},
         # Groceries
-        {"description": "Panda Supermarket",            "amount": 287.0,  "type": "EXPENSE"},
-        {"description": "Othaim Markets",               "amount": 156.0,  "type": "EXPENSE"},
-        {"description": "Tamimi Markets",               "amount": 198.0,  "type": "EXPENSE"},
+        {"description": "Panda Supermarket",             "amount": 287.0,  "type": "EXPENSE"},
+        {"description": "Othaim Markets",                "amount": 156.0,  "type": "EXPENSE"},
+        {"description": "Tamimi Markets",                "amount": 198.0,  "type": "EXPENSE"},
         # Utilities
-        {"description": "STC Monthly Bill",             "amount": 210.0,  "type": "EXPENSE"},
-        {"description": "Saudi Electricity SEC",        "amount": 320.0,  "type": "EXPENSE"},
-        # Income / savings
-        {"description": "Alinma Auto-Save Transfer",    "amount": 1000.0, "type": "INCOME"},
-        {"description": "Salary Deposit Alinma",        "amount": 8000.0, "type": "INCOME"},
+        {"description": "STC Monthly Bill",              "amount": 210.0,  "type": "EXPENSE"},
+        {"description": "Saudi Electricity SEC",         "amount": 320.0,  "type": "EXPENSE"},
+        # BNPL / committed obligation (Sharia-compliant installment)
+        {"description": "Tabby Installment",             "amount": 250.0,  "type": "EXPENSE"},
+        # Family support — EXPENSE, excluded from Z-Score anomaly pool
+        {"description": "Monthly Family Transfer",       "amount": 1500.0, "type": "EXPENSE"},
+        # Savings / income
+        {"description": "Alinma Instant Savings",        "amount": 300.0,  "type": "INCOME"},
+        {"description": "Alinma Auto-Save Transfer",     "amount": 1000.0, "type": "INCOME"},
     ]
 
     today = _date.today().isoformat()
