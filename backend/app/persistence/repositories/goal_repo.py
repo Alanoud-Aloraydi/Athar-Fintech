@@ -235,6 +235,36 @@ class GoalRepository:
             **self._unwrap_rpc_row(response.data, "increment_goal_progress", goal_id)
         )
 
+    def get_all_goals(self, user_id: str) -> list[GoalRecord]:
+        """
+        Returns all goals for a user across all statuses (ACTIVE, COMPLETED,
+        ARCHIVED), ordered most-recent first. Used by the goal history
+        endpoint — does NOT filter by status.
+
+        Args:
+            user_id: UUID (as string) of the owning user.
+
+        Returns:
+            A list of `GoalRecord` instances (may be empty).
+
+        Raises:
+            PersistenceError: If the query fails.
+        """
+        try:
+            response = (
+                self._client.table(_TABLE)
+                .select("*")
+                .eq("user_id", user_id)
+                .order("created_at", desc=True)
+                .execute()
+            )
+        except APIError as exc:
+            raise PersistenceError(
+                f"Failed to fetch goal history for user '{user_id}': {exc.message}"
+            ) from exc
+
+        return [GoalRecord(**row) for row in (response.data or [])]
+
     @staticmethod
     def _unwrap_rpc_row(data: object, function_name: str, context_id: str) -> dict:
         """

@@ -1,0 +1,43 @@
+Act as a Lead FinTech Architect and Senior Flutter Developer. We are finalizing our app for the "Emdad Hackathon". We need to implement a strict "Two-Ledger" banking architecture (separating Current Account from Savings Wallet) and revamp the Flutter Dashboard to be a rich, data-driven financial command center.
+
+Execute the following backend and frontend updates strictly:
+
+### 1. BACKEND: The Two-Ledger Architecture & DTOs (FastAPI)
+- **Data Model Update:** Update `DashboardSummaryDTO`. Remove the flawed `total_wallet_balance`.
+- Replace it with:
+  - `current_account_balance`: Liquid cash for daily use.
+  - `savings_wallet_balance`: Ring-fenced savings tied to the Oasis.
+  - `active_goal_target`: The monetary target of the currently active goal.
+  - `active_goal_progress_pct`: Percentage of the goal completed.
+- **Chart Data:** Add a new field `spending_by_category: dict[str, float]` returning the percentage distribution of the current month's expenses (e.g., {"Food": 40.0, "Bills": 20.0}).
+- **Goal Constraints:** Update the Goal creation endpoint to REJECT a new goal if the user already has a goal with status `Active`. Create a new endpoint `GET /goals/{user_id}/history` to return all goals (Active, Completed, Cancelled).
+
+### 2. BACKEND: Z-Score & Dynamic Savings Algorithm (FastAPI)
+- **Z-Score Fix:** Ensure the Anomaly Detection properly flags spikes (e.g., spending 30 SAR on Coffee when the historical average is 20 SAR). Output exactly this Arabic format in the `anomalies` list: "⚠️ انتبه: دفعت [Amount] ريال في [Category]، بينما متوسطك المعتاد هو [Avg] ريال! هذا التذبذب يؤثر على صحة نخلتك."
+- **Dynamic Recommended Savings (DRS):** Calculate a safe surplus based on obligations and discretionary spend. Expose it in the DTO as `dynamic_recommended_savings` (e.g., 450 SAR).
+
+### 3. FRONTEND: Dashboard UI Redesign (Flutter)
+Completely redesign the Dashboard screen to stack vertically in these EXACT 4 sections using strict FinTech Arabic terminology:
+
+- **Section 1: "الحساب الجاري" (Current Account)**
+  - A sleek card displaying the `current_account_balance`.
+  - Subtext: "الرصيد المتاح للاستخدام اليومي" (Available balance for daily use).
+  - Add the "مزامنة البيانات 🔄" (Sync Data) button prominently here to fetch the mock Open Banking data.
+
+- **Section 2: "أين ذهبت أموالك هذا الشهر؟" (Spending Chart 📊)**
+  - Consume the `spending_by_category` dict.
+  - Build a beautiful Pie Chart or Horizontal Bar Chart showing the distribution of expenses with colorful legends.
+
+- **Section 3: "الرادار والمستشار الذكي" (Radar & Smart Advisor 🧠)**
+  - **Radar:** Display the Z-Score `anomalies` list in a warning-styled card.
+  - **Advisor:** Display the DRS text: "بناءً على التزاماتك ومصروفاتك، يمكنك إيداع [DRS Amount] ريال هذا الشهر بأمان."
+  - **Action Button:** Add a button labeled "افتح تطبيق الإنماء للإيداع 🏦". This replaces the old in-app transfer logic, reflecting real Open Banking constraints.
+
+- **Section 4: "محفظة الادخار والواحة" (Savings Wallet & Goal 🌱)**
+  - A solid/secure-looking card showing `savings_wallet_balance`.
+  - Show a Progress Bar for the active goal based on `active_goal_progress_pct`.
+  - **Smart Goal Button Logic:**
+    - If an active goal exists: Disable/Hide the "Add Goal" button and display text: "يجب إكمال أو إلغاء الهدف الحالي لتبدأ هدفاً جديداً لنخلتك."
+    - If NO active goal exists: Show an active button: "إضافة هدف ادخاري جديد 🎯".
+
+Generate the exact corrected Python API logic and the fully updated Flutter Dashboard UI code. Use proper Flutter `Card` widgets, Charts, and clean layout spacing.

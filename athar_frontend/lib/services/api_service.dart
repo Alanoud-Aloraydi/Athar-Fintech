@@ -155,6 +155,17 @@ class ApiService {
 
   // --- Goals -----------------------------------------------------------------
 
+  /// GET /goals/{user_id}/history -> List<GoalResponseDTO>
+  ///
+  /// Returns all goals for the user across every status (Active, Completed,
+  /// Archived), most recent first.
+  Future<List<Goal>> getGoalHistory(String userId) async {
+    final res = await http.get(Uri.parse('$baseUrl/goals/$userId/history'), headers: _authHeaders);
+    _checkStatus(res);
+    final decoded = jsonDecode(res.body) as List;
+    return decoded.map((e) => Goal.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
   /// GET /goals/{user_id}/active -> GoalResponseDTO | null
   Future<Goal?> getActiveGoal(String userId) async {
     final res = await http.get(Uri.parse('$baseUrl/goals/$userId/active'), headers: _authHeaders);

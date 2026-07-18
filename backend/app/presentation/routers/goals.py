@@ -123,6 +123,31 @@ async def transition_goal_status(
 
 
 @router.get(
+    "/{user_id}/history",
+    response_model=list[GoalResponseDTO],
+    summary="Return all goals for a user across all statuses (Active, Completed, Archived)",
+)
+async def get_goal_history(
+    user_id: UUID,
+    facade: GoalFacade = Depends(get_goal_facade),
+    current_user_id: str = Depends(get_current_user_id),
+) -> list[GoalResponseDTO]:
+    """
+    Returns every goal the user has ever created, most recent first.
+    Useful for rendering a goal history timeline on the client.
+    """
+    require_matching_user(str(user_id), current_user_id)
+    try:
+        return await run_in_threadpool(facade.get_goal_history, str(user_id))
+    except PersistenceError as exc:
+        logger.exception("Failed to fetch goal history for user_id=%s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=_UPSTREAM_ERROR_DETAIL,
+        ) from exc
+
+
+@router.get(
     "/{user_id}/active",
     response_model=GoalResponseDTO | None,
     summary="Fetch a user's currently active Financial Goal, if any",

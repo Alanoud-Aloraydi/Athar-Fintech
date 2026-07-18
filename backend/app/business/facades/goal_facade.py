@@ -107,6 +107,22 @@ class GoalFacade:
         )
         return self._to_response_dto(goal_record)
 
+    def get_goal_history(self, user_id: str) -> list[GoalResponseDTO]:
+        """
+        Returns all goals for the user across every status, most recent first.
+
+        Args:
+            user_id: UUID (as string) of the owning user.
+
+        Returns:
+            A list of `GoalResponseDTO` instances (may be empty).
+
+        Raises:
+            PersistenceError: If the query fails.
+        """
+        records = self._goal_repository.get_all_goals(user_id)
+        return [self._to_response_dto(r) for r in records]
+
     @staticmethod
     def _to_response_dto(record: GoalRecord) -> GoalResponseDTO:
         """Maps a Persistence-layer `GoalRecord` to a Presentation-layer `GoalResponseDTO`."""

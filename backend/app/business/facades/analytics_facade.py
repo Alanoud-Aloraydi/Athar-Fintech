@@ -47,10 +47,11 @@ _INCOME = "INCOME"
 _EXPENSE = "EXPENSE"
 _SAVINGS = "SAVINGS"
 
-# Mock historical baseline wealth — simulates the user's cumulative Alinma
-# savings/investments before this month. Total wallet balance is:
-#   baseline_wealth + (current_month_income − current_month_expenses)
-_BASELINE_WEALTH: float = 55_000.0
+# ── Two-ledger mock baselines ─────────────────────────────────────────────────
+# Simulate pre-existing account balances that would exist in a real Alinma
+# Open Banking integration. The actual month's net cashflow is layered on top.
+_BASELINE_CURRENT: float = 8_500.0   # current account (liquid, daily use)
+_BASELINE_SAVINGS: float = 15_000.0  # savings wallet (ring-fenced, Oasis-linked)
 
 # Trailing window used for the "Smart Insights" block (spending velocity,
 # savings rate, goal-completion projection) on the unified dashboard.
@@ -234,17 +235,38 @@ class AnalyticsFacade:
             trajectory_deviation, spending_volatility, breakdown
         )
 
-        # Wealth = historical baseline + this month's net cashflow.
-        total_wallet_balance = _BASELINE_WEALTH + (total_income - total_expenses)
+        # ── Two-Ledger balances ────────────────────────────────────────────
+        current_account_balance = round(_BASELINE_CURRENT + (total_income - total_expenses), 1)
+        savings_wallet_balance = round(
+            _BASELINE_SAVINGS + (active_goal.saved_amount if active_goal else 0.0), 1
+        )
+        active_goal_target = active_goal.target_amount if active_goal else 0.0
+        active_goal_progress_pct = (
+            round(active_goal.saved_amount / active_goal.target_amount * 100, 1)
+            if active_goal and active_goal.target_amount > 0
+            else 0.0
+        )
+
+        # ── Arabic spending distribution (% per category label) ───────────
+        spending_distribution = self._compute_spending_by_category(breakdown, total_expenses)
+
+        # ── Dynamic Recommended Savings (DRS) ─────────────────────────────
+        # Discretionary surplus = income − all expenses − committed obligations.
+        # DRS = 35 % of that surplus — the safe monthly deposit amount.
+        _net_discretionary = total_income - total_expenses - committed_obligations
+        dynamic_recommended_savings = round(max(0.0, _net_discretionary * 0.35), 1)
 
         return DashboardSummaryDTO(
             user_id=UUID(user_id),
-            total_wallet_balance=total_wallet_balance,
+            current_account_balance=current_account_balance,
+            savings_wallet_balance=savings_wallet_balance,
             current_month_income=total_income,
             current_month_expenses=total_expenses,
             net_flow=total_income - total_expenses,
             active_goal=goal_progress,
-            spending_by_category=breakdown,
+            active_goal_target=active_goal_target,
+            active_goal_progress_pct=active_goal_progress_pct,
+            spending_by_category=spending_distribution,
             oasis_growth_score=oasis_state.growth_level if oasis_state else 0.0,
             oasis_health_score=current_health,
             insights=insights,
@@ -256,6 +278,7 @@ class AnalyticsFacade:
             committed_obligations=committed_obligations,
             safe_to_spend_today=safe_to_spend_today,
             days_to_payday=days_to_payday,
+            dynamic_recommended_savings=dynamic_recommended_savings,
         )
 
     # ------------------------------------------------------------------
@@ -403,6 +426,44 @@ class AnalyticsFacade:
             "وفّر 100 ريال من ميزانية المطاعم هذا الأسبوع، "
             "وحوّلها الآن للادخار لإنعاش واحتك 🌱"
         )
+
+    @staticmethod
+    def _compute_spending_by_category(
+        breakdown: list[CategoryBreakdownDTO],
+        total_expenses: float,
+    ) -> dict[str, float]:
+        """
+        Returns an Arabic-labelled percentage distribution of EXPENSE categories.
+
+        Multiple backend categories that share an Arabic label (e.g. an
+        'OTHER' future category alongside 'UNCATEGORIZED') are summed before
+        converting to a percentage.  Returns an empty dict when there are no
+        EXPENSE transactions.
+        """
+        _CAT_AR: dict[str, str] = {
+            "ENTERTAINMENT": "طعام ومقاهي",
+            "GROCERIES": "بقالة",
+            "UTILITIES": "فواتير",
+            "UNCATEGORIZED": "أخرى",
+        }
+        if total_expenses <= 0:
+            return {}
+
+        label_totals: dict[str, float] = {}
+        for b in breakdown:
+            key = b.category.value.upper()
+            if key == "SAVINGS":
+                continue  # savings deposits are not expenses
+            label = _CAT_AR.get(key, "أخرى")
+            label_totals[label] = label_totals.get(label, 0.0) + b.total_amount
+
+        # Sort descending by amount so the client can render in meaningful order.
+        return {
+            label: round(amount / total_expenses * 100, 1)
+            for label, amount in sorted(
+                label_totals.items(), key=lambda x: x[1], reverse=True
+            )
+        }
 
     @staticmethod
     def _summarize_transactions(

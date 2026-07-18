@@ -135,36 +135,52 @@ class SmartInsights {
 /// Mirrors `DashboardSummaryDTO` — the unified GET /analytics/{user_id} payload.
 class DashboardSummary {
   final String userId;
-  final double totalWalletBalance;   // baseline_wealth + net monthly cashflow
+
+  // Two-Ledger balances
+  final double currentAccountBalance; // liquid daily-use cash
+  final double savingsWalletBalance;  // ring-fenced savings, Oasis-linked
   final double currentMonthIncome;
   final double currentMonthExpenses;
   final double netFlow;
+
+  // Active goal summary
   final GoalProgress? activeGoal;
-  final List<CategoryBreakdown> spendingByCategory;
+  final double activeGoalTarget;
+  final double activeGoalProgressPct;
+
+  // Spending distribution: Arabic label → percentage
+  final Map<String, double> spendingByCategory;
+
   final double oasisGrowthScore;
   final double oasisHealthScore;
   final SmartInsights insights;
 
-  // Open Banking analytics fields (Anomalies, Trajectory & Volatility)
+  // Open Banking analytics
   final List<String> anomalies;
   final double trajectoryDeviation;
   final double trajectoryDelayMonths;
   final double spendingVolatility;
   final String nudgeMessage;
 
-  // Income-aware liquidity metrics (P1)
-  final double committedObligations; // Tabby / مرابحة / التزامات
-  final double safeToSpendToday;    // Daily safe amount until payday
-  final int daysToPayday;           // Days until the 27th
+  // Liquidity metrics
+  final double committedObligations;
+  final double safeToSpendToday;
+  final int daysToPayday;
+
+  // Dynamic Recommended Savings (DRS)
+  final double dynamicRecommendedSavings;
 
   DashboardSummary({
     required this.userId,
-    required this.totalWalletBalance,
+    required this.currentAccountBalance,
+    required this.savingsWalletBalance,
     required this.currentMonthIncome,
     required this.currentMonthExpenses,
     required this.netFlow,
     required this.activeGoal,
-    required this.spendingByCategory,
+    this.activeGoalTarget = 0.0,
+    this.activeGoalProgressPct = 0.0,
+    this.spendingByCategory = const {},
     required this.oasisGrowthScore,
     required this.oasisHealthScore,
     required this.insights,
@@ -176,18 +192,24 @@ class DashboardSummary {
     this.committedObligations = 0.0,
     this.safeToSpendToday = 0.0,
     this.daysToPayday = 0,
+    this.dynamicRecommendedSavings = 0.0,
   });
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) => DashboardSummary(
         userId: json['user_id'] as String,
-        totalWalletBalance: _asDouble(json['total_wallet_balance']),
+        currentAccountBalance: _asDouble(json['current_account_balance']),
+        savingsWalletBalance: _asDouble(json['savings_wallet_balance']),
         currentMonthIncome: _asDouble(json['current_month_income']),
         currentMonthExpenses: _asDouble(json['current_month_expenses']),
         netFlow: _asDouble(json['net_flow']),
-        activeGoal: json['active_goal'] != null ? GoalProgress.fromJson(json['active_goal']) : null,
-        spendingByCategory: (json['spending_by_category'] as List)
-            .map((e) => CategoryBreakdown.fromJson(e as Map<String, dynamic>))
-            .toList(),
+        activeGoal: json['active_goal'] != null
+            ? GoalProgress.fromJson(json['active_goal'] as Map<String, dynamic>)
+            : null,
+        activeGoalTarget: (json['active_goal_target'] as num?)?.toDouble() ?? 0.0,
+        activeGoalProgressPct: (json['active_goal_progress_pct'] as num?)?.toDouble() ?? 0.0,
+        spendingByCategory: (json['spending_by_category'] as Map<String, dynamic>?)
+                ?.map((k, v) => MapEntry(k, (v as num).toDouble())) ??
+            const {},
         oasisGrowthScore: _asDouble(json['oasis_growth_score']),
         oasisHealthScore: _asDouble(json['oasis_health_score']),
         insights: SmartInsights.fromJson(json['insights'] as Map<String, dynamic>),
@@ -199,6 +221,8 @@ class DashboardSummary {
         committedObligations: (json['committed_obligations'] as num?)?.toDouble() ?? 0.0,
         safeToSpendToday: (json['safe_to_spend_today'] as num?)?.toDouble() ?? 0.0,
         daysToPayday: (json['days_to_payday'] as num?)?.toInt() ?? 0,
+        dynamicRecommendedSavings:
+            (json['dynamic_recommended_savings'] as num?)?.toDouble() ?? 0.0,
       );
 }
 

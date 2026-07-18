@@ -95,17 +95,38 @@ class DashboardSummaryDTO(BaseModel):
     """
 
     user_id: UUID
-    total_wallet_balance: float = Field(
-        description="baseline_wealth (55,000 SAR) + (current_month_income − current_month_expenses). "
-        "Represents cumulative wealth, not just this month's net flow."
+
+    # ── Two-Ledger balances ─────────────────────────────────────────────────
+    current_account_balance: float = Field(
+        description="Liquid cash for daily use. Simulated: baseline (8,500 SAR) + net monthly cashflow."
+    )
+    savings_wallet_balance: float = Field(
+        description="Ring-fenced savings tied to the Oasis. Simulated: baseline (15,000 SAR) + goal saved_amount."
     )
     current_month_income: float = Field(description="Sum of all INCOME transactions this month")
     current_month_expenses: float = Field(description="Sum of all EXPENSE transactions this month")
     net_flow: float
+
+    # ── Active goal summary ─────────────────────────────────────────────────
     active_goal: GoalProgressDTO | None = Field(
         default=None, description="The user's active Financial Goal, or null if none"
     )
-    spending_by_category: list[CategoryBreakdownDTO]
+    active_goal_target: float = Field(
+        default=0.0, description="Monetary target of the active goal, or 0 if none."
+    )
+    active_goal_progress_pct: float = Field(
+        default=0.0, description="Percentage of the active goal completed (0–100), or 0 if none."
+    )
+
+    # ── Spending distribution (Arabic-labelled percentage dict) ─────────────
+    spending_by_category: dict[str, float] = Field(
+        default_factory=dict,
+        description=(
+            "Arabic-labelled percentage distribution of current-month EXPENSE transactions. "
+            "E.g. {'طعام ومقاهي': 40.0, 'بقالة': 35.0, 'فواتير': 25.0}. "
+            "Values sum to ~100. Empty when no EXPENSE transactions exist."
+        ),
+    )
     oasis_growth_score: float
     oasis_health_score: float
     insights: SmartInsightsDTO
@@ -156,6 +177,13 @@ class DashboardSummaryDTO(BaseModel):
     days_to_payday: int = Field(
         default=0,
         description="Calendar days remaining until the 27th of the current (or next) month.",
+    )
+    dynamic_recommended_savings: float = Field(
+        default=0.0,
+        description=(
+            "Dynamic Recommended Savings (DRS): net discretionary surplus × 35%. "
+            "The safe amount to deposit to the savings wallet this month."
+        ),
     )
 
 

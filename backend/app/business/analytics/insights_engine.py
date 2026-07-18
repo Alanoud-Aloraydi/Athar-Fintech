@@ -211,9 +211,11 @@ class InsightsEngine:
                 continue
 
             desc = getattr(txn, "description", "")
+            category_ar = InsightsEngine._category_label_ar(desc, cat)
             anomalies.append(
-                f"⚠️ إنفاق غير معتاد في {desc} بقيمة {txn.amount:.0f} ريال. "
-                f"(هذا التذبذب له تأثير سلبي على مستوى ارتواء واحتك 🍂)"
+                f"⚠️ انتبه: دفعت {txn.amount:.0f} ريال في {category_ar}، "
+                f"بينما متوسطك المعتاد هو {mu:.0f} ريال! "
+                f"هذا التذبذب يؤثر على صحة نخلتك."
             )
 
         return anomalies
