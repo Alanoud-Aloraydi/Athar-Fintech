@@ -1,5 +1,3 @@
-
-
 """
 Presentation-layer dependency wiring.
 
@@ -8,11 +6,27 @@ about Business-layer engines and Persistence-layer repositories. Routers
 depend exclusively on the `get_*_facade` functions exposed here, so they
 never import an engine or a repository directly — that was the leak
 identified in the original `transactions.py` router.
+
+ACCESS CONTROL — defense-in-depth
+----------------------------------
+All user-scoped repository providers below use ``get_user_scoped_client``
+rather than the service-role singleton.  ``get_user_scoped_client`` creates a
+Supabase client authenticated with the caller's own JWT, so every PostgREST
+query it issues runs as that user.  When Row Level Security is enabled on the
+database tables (see migration 006), Supabase will automatically reject any
+query that tries to touch another user's rows — providing a database-layer
+ownership check that is independent of the application-level
+``require_matching_user`` guard in each route handler.
+
+The service-role client (``get_supabase_client``) is intentionally NOT used
+here; it is kept only for genuine administrative operations that need to
+bypass RLS.
 """
 
 from __future__ import annotations
 
 from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from supabase import Client
 
 from app.business.analytics.insights_engine import InsightsEngine
@@ -22,31 +36,70 @@ from app.business.facades.oasis_facade import OasisFacade
 from app.business.facades.transaction_facade import TransactionFacade
 from app.business.facades.goal_facade import GoalFacade
 from app.business.gamification.engine import GamificationEngine, get_gamification_engine
-from app.core.supabase_client import get_supabase_client
+from app.core.supabase_client import get_user_supabase_client
 from app.persistence.repositories.goal_repo import GoalRepository
 from app.persistence.repositories.oasis_repo import OasisRepository
 from app.persistence.repositories.profile_repo import ProfileRepository
 from app.persistence.repositories.transaction_repo import TransactionRepository
+from app.presentation.auth import _UNAUTHORIZED, _bearer_scheme
+
+
+# ---------------------------------------------------------------------------
+# User-scoped Supabase client
+# ---------------------------------------------------------------------------
+
+def get_user_scoped_client(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+) -> Client:
+    """
+    FastAPI dependency — returns a Supabase client authenticated as the
+    requesting user.
+
+    The client is initialized with the anon key and then has the caller's
+    Bearer JWT attached to every PostgREST request (via
+    ``client.postgrest.auth(token)``).  This means:
+
+    * ``auth.uid()`` inside RLS policies resolves to the caller's UUID.
+    * Row Level Security policies (migration 006) are enforced by the
+      database, not just by our application code.
+
+    The token is NOT re-validated here — ``get_current_user_id`` (already
+    called by every authenticated route via ``Depends``) handles signature
+    verification.  This dependency simply threads the raw token into the
+    client so the database can enforce ownership independently.
+
+    Raises HTTP 401 if no Bearer token is present (consistent with the auth
+    module's behaviour so callers get a single, uniform error shape).
+    """
+    if credentials is None or not credentials.credentials:
+        raise _UNAUTHORIZED
+    return get_user_supabase_client(credentials.credentials)
 
 
 # --- Repository providers -------------------------------------------------
 
 
 def get_transaction_repository(
-    client: Client = Depends(get_supabase_client),
+    client: Client = Depends(get_user_scoped_client),
 ) -> TransactionRepository:
     return TransactionRepository(client)
 
 
-def get_goal_repository(client: Client = Depends(get_supabase_client)) -> GoalRepository:
+def get_goal_repository(
+    client: Client = Depends(get_user_scoped_client),
+) -> GoalRepository:
     return GoalRepository(client)
 
 
-def get_oasis_repository(client: Client = Depends(get_supabase_client)) -> OasisRepository:
+def get_oasis_repository(
+    client: Client = Depends(get_user_scoped_client),
+) -> OasisRepository:
     return OasisRepository(client)
 
 
-def get_profile_repository(client: Client = Depends(get_supabase_client)) -> ProfileRepository:
+def get_profile_repository(
+    client: Client = Depends(get_user_scoped_client),
+) -> ProfileRepository:
     return ProfileRepository(client)
 
 

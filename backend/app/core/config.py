@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_KEY: Optional[str] = Field(
         default=None, description="Supabase service_role secret key (server-side only)"
     )
+    SUPABASE_ANON_KEY: Optional[str] = Field(
+        default=None,
+        description=(
+            "Supabase project's anon/public key. Used to build per-user Supabase "
+            "clients that authenticate as the requesting user (respects RLS). "
+            "Safe to expose to clients, but kept server-side here."
+        ),
+    )
     SUPABASE_JWT_SECRET: Optional[str] = Field(
         default=None,
         description=(
