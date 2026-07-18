@@ -135,9 +135,9 @@ class SmartInsights {
 /// Mirrors `DashboardSummaryDTO` — the unified GET /analytics/{user_id} payload.
 class DashboardSummary {
   final String userId;
-  final double currentBalance;
-  final double totalIncome;
-  final double totalExpenses;
+  final double totalWalletBalance;   // baseline_wealth + net monthly cashflow
+  final double currentMonthIncome;
+  final double currentMonthExpenses;
   final double netFlow;
   final GoalProgress? activeGoal;
   final List<CategoryBreakdown> spendingByCategory;
@@ -159,9 +159,9 @@ class DashboardSummary {
 
   DashboardSummary({
     required this.userId,
-    required this.currentBalance,
-    required this.totalIncome,
-    required this.totalExpenses,
+    required this.totalWalletBalance,
+    required this.currentMonthIncome,
+    required this.currentMonthExpenses,
     required this.netFlow,
     required this.activeGoal,
     required this.spendingByCategory,
@@ -180,9 +180,9 @@ class DashboardSummary {
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) => DashboardSummary(
         userId: json['user_id'] as String,
-        currentBalance: _asDouble(json['current_balance']),
-        totalIncome: _asDouble(json['total_income']),
-        totalExpenses: _asDouble(json['total_expenses']),
+        totalWalletBalance: _asDouble(json['total_wallet_balance']),
+        currentMonthIncome: _asDouble(json['current_month_income']),
+        currentMonthExpenses: _asDouble(json['current_month_expenses']),
         netFlow: _asDouble(json['net_flow']),
         activeGoal: json['active_goal'] != null ? GoalProgress.fromJson(json['active_goal']) : null,
         spendingByCategory: (json['spending_by_category'] as List)

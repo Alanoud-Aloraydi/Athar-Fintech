@@ -1,0 +1,30 @@
+Act as a Lead FinTech Architect and Senior Flutter UI/UX Designer. We found critical architectural math bugs in our backend and severe UX flaws in the Flutter dashboard. We must fix them immediately for our Alinma Bank integration demo.
+
+Execute these updates strictly, leaving no room for random translations or bad UI:
+
+### 1. BACKEND: Fix the Fake Ledger Math (FastAPI)
+- **The Bug:** Currently, `wallet_balance` equals `(monthly_income - monthly_expenses)`. This is mathematically wrong for FinTech as it ignores cumulative wealth.
+- **The Fix:** Introduce a mock `baseline_wealth` (e.g., 55,000 SAR) to simulate historical balance. 
+- The new formula MUST be: `total_wallet_balance = baseline_wealth + (monthly_income - monthly_expenses)`.
+- Update `DashboardSummaryDTO` to separate: `total_wallet_balance`, `current_month_income`, and `current_month_expenses`.
+
+### 2. FRONTEND: UI Split - Cashflow vs. Wealth (Flutter)
+Redesign the top of the dashboard into two distinct, beautiful sections:
+- **Card 1 (Total Wealth):** - Title: "الرصيد الإجمالي لمحفظة الإنماء" (Total Alinma Wallet Balance). 
+  - Value: Show `total_wallet_balance` in a large, bold font.
+- **Card 2 (Monthly Cashflow):** - Title: "التدفق النقدي لهذا الشهر" (This Month's Cashflow). 
+  - Design: A row with two columns. Column 1 (Green): "دخل هذا الشهر" (Income). Column 2 (Red/Orange): "مصروفات هذا الشهر" (Expenses). 
+  - RULE: Never use the word "إجمالي" for monthly metrics.
+
+### 3. FRONTEND: Fix the "Oasis: Number" Raw Variable UX Bug (Flutter)
+- **The Bug:** The Anomaly Radar card displays raw backend values like "الواحة: -2.5" (Oasis: -2.5). This is terrible UX.
+- **The Fix:** Remove the raw number completely. Map the negative impact to human-readable Saudi FinTech Arabic copy. 
+- **Exact String to use for anomalies:** "⚠️ إنفاق غير معتاد في [Merchant] بقيمة [Amount] ريال. (هذا التذبذب له تأثير سلبي على مستوى ارتواء واحتك 🍂)".
+
+### 4. FRONTEND/BACKEND: Negative "Safe-to-Spend" Edge Case (Flutter/FastAPI)
+- **The Bug:** If the user overspends early, the "Safe-to-Spend Today" (المصروف اليومي الآمن) becomes negative (e.g., -50 SAR), which is illogical.
+- **The Fix:** Add conditional UI logic for this specific widget:
+  - If `safe_to_spend` > 0: Show Green text/icon: "يمكنك صرف [Amount] ريال اليوم بأمان 🟢".
+  - If `safe_to_spend` <= 0: Show Red text/icon/warning: "تجاوزت الحد الآمن! 🛑 أوقف المصاريف الكمالية حتى نزول الراتب."
+
+Generate the corrected Python API logic and the fully updated Flutter Dashboard UI code. Use proper Flutter `Card` widgets, `Icons`, and standard FinTech colors (Green for positive/income, Red for negative/warnings).

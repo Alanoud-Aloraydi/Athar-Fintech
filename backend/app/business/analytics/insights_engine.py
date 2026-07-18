@@ -211,27 +211,10 @@ class InsightsEngine:
                 continue
 
             desc = getattr(txn, "description", "")
-            category_ar = InsightsEngine._category_label_ar(desc, cat)
-            health_note = (
-                " هذا التذبذب يؤثر سلباً على صحة واحتك!"
-                if oasis_health_score < 80
-                else ""
+            anomalies.append(
+                f"⚠️ إنفاق غير معتاد في {desc} بقيمة {txn.amount:.0f} ريال. "
+                f"(هذا التذبذب له تأثير سلبي على مستوى ارتواء واحتك 🍂)"
             )
-
-            # Income-relative severity metric — shows the anomaly as a
-            # percentage of monthly income for clearer user impact.
-            if total_income > 0.0:
-                severity_pct = (txn.amount / total_income) * 100.0
-                anomalies.append(
-                    f"⚠️ إنفاق غير معتاد: دفعت {txn.amount:.0f} ريال في ({desc}). "
-                    f"هذا يمثل {severity_pct:.1f}٪ من دخلك الشهري، "
-                    f"وهو أعلى من متوسطك المعتاد على {category_ar} ({mu:.0f} ريال).{health_note}"
-                )
-            else:
-                anomalies.append(
-                    f"⚠️ إنفاق غير معتاد: دفعت {txn.amount:.0f} ريال في ({desc}). "
-                    f"هذا يتجاوز متوسط صرفك المعتاد على {category_ar} ({mu:.0f} ريال).{health_note}"
-                )
 
         return anomalies
 

@@ -47,6 +47,11 @@ _INCOME = "INCOME"
 _EXPENSE = "EXPENSE"
 _SAVINGS = "SAVINGS"
 
+# Mock historical baseline wealth — simulates the user's cumulative Alinma
+# savings/investments before this month. Total wallet balance is:
+#   baseline_wealth + (current_month_income − current_month_expenses)
+_BASELINE_WEALTH: float = 55_000.0
+
 # Trailing window used for the "Smart Insights" block (spending velocity,
 # savings rate, goal-completion projection) on the unified dashboard.
 _INSIGHTS_WINDOW_DAYS = 30
@@ -229,11 +234,14 @@ class AnalyticsFacade:
             trajectory_deviation, spending_volatility, breakdown
         )
 
+        # Wealth = historical baseline + this month's net cashflow.
+        total_wallet_balance = _BASELINE_WEALTH + (total_income - total_expenses)
+
         return DashboardSummaryDTO(
             user_id=UUID(user_id),
-            current_balance=profile.current_balance,
-            total_income=total_income,
-            total_expenses=total_expenses,
+            total_wallet_balance=total_wallet_balance,
+            current_month_income=total_income,
+            current_month_expenses=total_expenses,
             net_flow=total_income - total_expenses,
             active_goal=goal_progress,
             spending_by_category=breakdown,
@@ -284,12 +292,13 @@ class AnalyticsFacade:
         Daily safe-to-spend = (income − expenses) ÷ days_to_payday.
 
         Returns 0 when income is zero or payday has already passed (days=0).
-        Never negative — clamped to zero so the UI always shows ≥ 0.
+        Can be negative when expenses exceed income — the Flutter UI must
+        handle the negative case with a distinct overspending warning.
         """
         if total_income <= 0 or days_to_payday <= 0:
             return 0.0
         remaining = total_income - total_expenses
-        return round(max(0.0, remaining / days_to_payday), 1)
+        return round(remaining / days_to_payday, 1)
 
     @staticmethod
     def _calculate_trajectory(active_goal) -> tuple[float, float]:

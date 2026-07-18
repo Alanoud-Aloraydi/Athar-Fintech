@@ -113,36 +113,33 @@ class _DashboardBody extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 48),
       children: [
-        // ── Income Header Strip ────────────────────────────────────────
-        if (data.totalIncome > 0)
-          _IncomeHeaderStrip(
-            totalIncome: data.totalIncome,
-            totalExpenses: data.totalExpenses,
-            fmt: fmt,
-          ),
-        if (data.totalIncome > 0) const SizedBox(height: 12),
+        // ── Card 1: الرصيد الإجمالي لمحفظة الإنماء ─────────────────
+        _TotalWealthCard(
+          totalWalletBalance: data.totalWalletBalance,
+          syncing: syncing,
+          onSync: onSync,
+          fmt: fmt,
+        ),
+        const SizedBox(height: 12),
 
-        // ── Safe-to-Spend Card ─────────────────────────────────────────
-        if (data.safeToSpendToday > 0 && data.daysToPayday > 0) ...[
+        // ── Card 2: التدفق النقدي لهذا الشهر ───────────────────────
+        _MonthlyCashflowCard(
+          currentMonthIncome: data.currentMonthIncome,
+          currentMonthExpenses: data.currentMonthExpenses,
+          fmt: fmt,
+        ),
+        const SizedBox(height: 12),
+
+        // ── Safe-to-Spend Card (handles positive & negative) ─────────
+        if (data.daysToPayday > 0) ...[
           _SafeToSpendCard(
             safeToSpend: data.safeToSpendToday,
             daysToPayday: data.daysToPayday,
             committedObligations: data.committedObligations,
             fmt: fmt,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
         ],
-
-        // ── Section 1: رصيد محفظة الإنماء ────────────────────────────
-        _WalletSection(
-          balance: data.currentBalance,
-          income: data.totalIncome,
-          expenses: data.totalExpenses,
-          fmt: fmt,
-          syncing: syncing,
-          onSync: onSync,
-        ),
-        const SizedBox(height: 16),
 
         // ── Section 2: تحليل مصروفاتك ─────────────────────────────────
         _SpendingAnalysisSection(categories: data.spendingByCategory, fmt: fmt),
@@ -160,10 +157,7 @@ class _DashboardBody extends StatelessWidget {
 
         // ── Section 4: رادار المصروفات (conditional) ──────────────────
         if (data.anomalies.isNotEmpty) ...[
-          _ExpensesRadarSection(
-            anomalies: data.anomalies,
-            healthScore: data.oasisHealthScore,
-          ),
+          _ExpensesRadarSection(anomalies: data.anomalies),
           const SizedBox(height: 16),
         ],
 
@@ -265,10 +259,14 @@ class _SafeToSpendCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isOverspent = safeToSpend <= 0;
+
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFC9A227), Color(0xFFE3B84A)],
+        gradient: LinearGradient(
+          colors: isOverspent
+              ? [const Color(0xFFB91C1C), const Color(0xFFDC2626)]
+              : [const Color(0xFFC9A227), const Color(0xFFE3B84A)],
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
@@ -278,10 +276,15 @@ class _SafeToSpendCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
+          // ── Header row ──────────────────────────────────────────────
           Row(children: [
-            const Icon(Icons.account_balance_wallet_outlined,
-                color: Colors.white, size: 18),
+            Icon(
+              isOverspent
+                  ? Icons.warning_rounded
+                  : Icons.account_balance_wallet_outlined,
+              color: Colors.white,
+              size: 18,
+            ),
             const SizedBox(width: 8),
             const Text(
               'المصروف اليومي الآمن',
@@ -291,7 +294,6 @@ class _SafeToSpendCard extends StatelessWidget {
                   fontSize: 14),
             ),
             const Spacer(),
-            // Payday countdown chip
             Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -308,40 +310,67 @@ class _SafeToSpendCard extends StatelessWidget {
               ),
             ),
           ]),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
 
-          // Big amount
-          Text(
-            fmt.format(safeToSpend),
-            style: const TextStyle(
-                fontSize: 42,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                height: 1),
-          ),
-          const Text(
-            'ريال / اليوم',
-            style: TextStyle(color: Colors.white70, fontSize: 12.5),
-          ),
-          const SizedBox(height: 12),
-
-          // Tip banner
-          Container(
-            width: double.infinity,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
+          // ── Conditional body ─────────────────────────────────────────
+          if (isOverspent) ...[
+            const Text('🛑',
+                style: TextStyle(fontSize: 36, height: 1)),
+            const SizedBox(height: 8),
+            const Text(
+              'تجاوزت الحد الآمن!',
+              style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  height: 1.1),
             ),
-            child: Text(
-              'يمكنك صرف ${fmt.format(safeToSpend)} ريال اليوم بأمان حتى يوم الراتب (بعد $daysToPayday يوم)',
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text(
+                'أوقف المصاريف الكمالية حتى نزول الراتب 🛑',
+                style:
+                    TextStyle(color: Colors.white, fontSize: 13, height: 1.55),
+              ),
+            ),
+          ] else ...[
+            Text(
+              fmt.format(safeToSpend),
               style: const TextStyle(
-                  color: Colors.white, fontSize: 12.5, height: 1.55),
+                  fontSize: 42,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  height: 1),
             ),
-          ),
+            const Text(
+              'ريال / اليوم',
+              style: TextStyle(color: Colors.white70, fontSize: 12.5),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'يمكنك صرف ${fmt.format(safeToSpend)} ريال اليوم بأمان 🟢',
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 12.5, height: 1.55),
+              ),
+            ),
+          ],
 
-          // Committed obligations note (if any)
+          // ── Committed obligations ────────────────────────────────────
           if (committedObligations > 0) ...[
             const SizedBox(height: 10),
             Row(children: [
@@ -361,7 +390,128 @@ class _SafeToSpendCard extends StatelessWidget {
   }
 }
 
-// ─── Section 1: Wallet ───────────────────────────────────────────────────────
+// ─── Card 1: Total Wealth ────────────────────────────────────────────────────
+
+class _TotalWealthCard extends StatelessWidget {
+  final double totalWalletBalance;
+  final bool syncing;
+  final VoidCallback onSync;
+  final NumberFormat fmt;
+
+  const _TotalWealthCard({
+    required this.totalWalletBalance,
+    required this.syncing,
+    required this.onSync,
+    required this.fmt,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            icon: Icons.account_balance_rounded,
+            title: 'الرصيد الإجمالي لمحفظة الإنماء',
+          ),
+          const SizedBox(height: 14),
+          Text(
+            fmt.format(totalWalletBalance),
+            style: const TextStyle(
+              fontSize: 40,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text('ريال سعودي', style: AppTextStyles.small),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: syncing ? null : onSync,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primaryDark,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: syncing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync_rounded, size: 20),
+              label: Text(
+                syncing
+                    ? 'جارٍ الاتصال بالإنماء...'
+                    : 'مزامنة المصرفية المفتوحة 🔄',
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Card 2: Monthly Cashflow ─────────────────────────────────────────────────
+
+class _MonthlyCashflowCard extends StatelessWidget {
+  final double currentMonthIncome, currentMonthExpenses;
+  final NumberFormat fmt;
+
+  const _MonthlyCashflowCard({
+    required this.currentMonthIncome,
+    required this.currentMonthExpenses,
+    required this.fmt,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            icon: Icons.swap_horiz_rounded,
+            title: 'التدفق النقدي لهذا الشهر',
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _MiniStat(
+                  label: 'دخل هذا الشهر',
+                  value: fmt.format(currentMonthIncome),
+                  color: AppColors.success,
+                  icon: Icons.arrow_circle_up_rounded,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MiniStat(
+                  label: 'مصروفات هذا الشهر',
+                  value: fmt.format(currentMonthExpenses),
+                  color: AppColors.danger,
+                  icon: Icons.arrow_circle_down_rounded,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Section 1: Wallet (legacy — preserved for sync button pattern reference) ──
 
 class _WalletSection extends StatelessWidget {
   final double balance, income, expenses;
@@ -767,10 +917,8 @@ class _SavingsPlanSection extends StatelessWidget {
 
 class _ExpensesRadarSection extends StatelessWidget {
   final List<String> anomalies;
-  final double healthScore;
 
-  const _ExpensesRadarSection(
-      {required this.anomalies, required this.healthScore});
+  const _ExpensesRadarSection({required this.anomalies});
 
   @override
   Widget build(BuildContext context) {
@@ -814,7 +962,6 @@ class _ExpensesRadarSection extends StatelessWidget {
                 ],
               ),
             ),
-            _HealthBadge(score: healthScore),
           ]),
           const SizedBox(height: 14),
           const Divider(height: 1, color: Color(0x22CC4444)),

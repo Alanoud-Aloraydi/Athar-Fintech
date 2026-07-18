@@ -95,9 +95,12 @@ class DashboardSummaryDTO(BaseModel):
     """
 
     user_id: UUID
-    current_balance: float = Field(description="The user's current profiles.current_balance")
-    total_income: float
-    total_expenses: float
+    total_wallet_balance: float = Field(
+        description="baseline_wealth (55,000 SAR) + (current_month_income − current_month_expenses). "
+        "Represents cumulative wealth, not just this month's net flow."
+    )
+    current_month_income: float = Field(description="Sum of all INCOME transactions this month")
+    current_month_expenses: float = Field(description="Sum of all EXPENSE transactions this month")
     net_flow: float
     active_goal: GoalProgressDTO | None = Field(
         default=None, description="The user's active Financial Goal, or null if none"
