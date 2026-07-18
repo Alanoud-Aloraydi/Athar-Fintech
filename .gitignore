@@ -222,3 +222,8 @@ athar_frontend/.dart_tool/
 athar_frontend/.flutter-plugins
 athar_frontend/.flutter-plugins-dependencies
 athar_frontend/.packages
+
+# --- Custom Hackathon Ignores ---
+.idea/
+.agents/
+.DS_Store
