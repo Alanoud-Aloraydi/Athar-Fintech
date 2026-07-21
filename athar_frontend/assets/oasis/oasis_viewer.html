@@ -106,6 +106,31 @@
       new THREE.MeshBasicMaterial({ color: 0xffd766 }));
     sun.position.set(22, 16, -20); scene.add(sun);
 
+    // ── Frond texture: a pinnate (feather) leaf drawn in white on a
+    //    transparent canvas, so material.color can tint it green→brown and
+    //    alphaTest carves out the natural leaflet gaps. ─────────────────────
+    function makeFrondTexture() {
+      var c = document.createElement('canvas'); c.width = 96; c.height = 384;
+      var g = c.getContext('2d');
+      var cx = 48;
+      g.strokeStyle = '#e8e8e8'; g.lineWidth = 3; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(cx, 380); g.lineTo(cx, 10); g.stroke(); // central rib
+      g.fillStyle = '#ffffff';
+      var n = 30;
+      for (var i = 0; i < n; i++) {
+        var f = i / (n - 1);              // 0 = base, 1 = tip
+        var y = 374 - f * 356;
+        var len = 46 * (1 - 0.62 * f) + 6; // long at base, short at tip
+        var ang = 0.5 + 0.42 * f;          // leaflets sweep up toward the tip
+        var dx = Math.cos(ang) * len, dy = Math.sin(ang) * len;
+        var hw = 4 * (1 - 0.5 * f) + 1.4;
+        g.beginPath(); g.moveTo(cx, y - hw); g.lineTo(cx, y + hw); g.lineTo(cx + dx, y - dy); g.closePath(); g.fill();
+        g.beginPath(); g.moveTo(cx, y - hw); g.lineTo(cx, y + hw); g.lineTo(cx - dx, y - dy); g.closePath(); g.fill();
+      }
+      var t = new THREE.CanvasTexture(c); t.needsUpdate = true; return t;
+    }
+    var FROND_TEX = makeFrondTexture();
+
     // ── Palm builder ──────────────────────────────────────────────────────
     var TRUNK_COL = 0x8a5a33;
     function buildPalm() {
@@ -118,7 +143,10 @@
       trunk.position.y = h / 2; g.add(trunk);
 
       var crown = new THREE.Group(); crown.position.y = h;
-      var frondMat = new THREE.MeshLambertMaterial({ color: 0x2e7d46, side: THREE.DoubleSide });
+      var frondMat = new THREE.MeshLambertMaterial({
+        map: FROND_TEX, color: 0x2e7d46, side: THREE.DoubleSide,
+        transparent: true, alphaTest: 0.4
+      });
       g.userData.frondMats = [frondMat];
       // Two layers of fronds form a drooping fountain crown: an inner ring
       // that arcs up-and-out, and an outer ring that droops further down.
@@ -130,7 +158,7 @@
         var lay = layers[L];
         for (var i = 0; i < lay.count; i++) {
           // Blade geometry extends outward from its base (pivot at the crown).
-          var geo = new THREE.PlaneGeometry(0.30, lay.len);
+          var geo = new THREE.PlaneGeometry(0.55, lay.len);
           geo.translate(0, lay.len / 2, 0);            // base at origin, tip at +len
           var blade = new THREE.Mesh(geo, frondMat);
           var ring = new THREE.Group();
