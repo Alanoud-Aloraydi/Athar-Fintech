@@ -18,7 +18,7 @@
 
 ## 🔗 Try it live
 
-**▶️ Live app:** https://athar-fintech.onrender.com
+**▶️ Live app:** https://athar-backend-s8tm.onrender.com
 
 Log in with the ready-made demo account — no signup needed:
 
