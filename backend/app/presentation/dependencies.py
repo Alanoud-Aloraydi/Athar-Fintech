@@ -36,7 +36,7 @@ from app.business.facades.oasis_facade import OasisFacade
 from app.business.facades.transaction_facade import TransactionFacade
 from app.business.facades.goal_facade import GoalFacade
 from app.business.gamification.engine import GamificationEngine, get_gamification_engine
-from app.core.supabase_client import get_user_supabase_client
+from app.core.supabase_client import get_supabase_client, get_user_supabase_client
 from app.persistence.repositories.goal_repo import GoalRepository
 from app.persistence.repositories.oasis_repo import OasisRepository
 from app.persistence.repositories.profile_repo import ProfileRepository
@@ -91,16 +91,21 @@ def get_goal_repository(
     return GoalRepository(client)
 
 
-def get_oasis_repository(
-    client: Client = Depends(get_user_scoped_client),
-) -> OasisRepository:
-    return OasisRepository(client)
+# NOTE (profiles + oasis_states): these two repositories use the service-role
+# client rather than the user-scoped client. Under the RLS model (migrations
+# 006/007) the `authenticated` role was never granted INSERT on `profiles`
+# (needed by ensure_profile's upsert) nor any privilege on `oasis_states`, so a
+# per-user client fails with "permission denied" and the dashboard 502s. Both
+# repositories only ever touch rows keyed by the caller's own user_id, and every
+# route still enforces `require_matching_user` against the JWT-verified id, so
+# provisioning/reading these via the admin client is safe. (Migration 008 adds
+# the missing grants for teams that prefer to keep these on the user client.)
+def get_oasis_repository() -> OasisRepository:
+    return OasisRepository(get_supabase_client())
 
 
-def get_profile_repository(
-    client: Client = Depends(get_user_scoped_client),
-) -> ProfileRepository:
-    return ProfileRepository(client)
+def get_profile_repository() -> ProfileRepository:
+    return ProfileRepository(get_supabase_client())
 
 
 # --- Engine providers ------------------------------------------------------
