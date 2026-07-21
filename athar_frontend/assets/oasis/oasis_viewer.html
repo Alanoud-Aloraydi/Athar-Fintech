@@ -27,7 +27,41 @@
       background: transparent;
       overflow: hidden;
     }
+    /* ── Oasis background (behind the transparent 3D canvas) ──────────── */
+    #oasis-bg {
+      position: absolute; inset: 0; z-index: 0;
+      overflow: hidden;
+      transition: filter 2s ease-in-out;
+    }
+    #sky {
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, #8Fc9E6 0%, #BFE3EF 48%, #F3E7C6 100%);
+    }
+    #sun {
+      position: absolute; top: 12%; right: 14%;
+      width: 74px; height: 74px; border-radius: 50%;
+      background: radial-gradient(circle, #FFE38A 0%, #FFD766 55%, rgba(255,215,102,0) 72%);
+    }
+    #dunes {
+      position: absolute; left: -8%; right: -8%; bottom: 50%; height: 80px;
+      background: #E4D2A6;
+      border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+      opacity: .8;
+    }
+    #sand {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 58%;
+      background: linear-gradient(to bottom, #E9D7AC 0%, #D2B888 100%);
+      border-radius: 32% 32% 0 0 / 12% 12% 0 0;
+    }
+    #pond {
+      position: absolute; left: 50%; bottom: 7%;
+      transform: translateX(-50%);
+      width: 44%; height: 58px; border-radius: 50%;
+      background: radial-gradient(ellipse at center, #57B4CE 0%, #2E86A8 80%);
+      box-shadow: 0 0 0 8px rgba(190,164,111,.55);
+    }
     #oasis-canvas {
+      position: absolute; inset: 0; z-index: 1;
       width: 100%; height: 100%;
       display: block;
       touch-action: none;
@@ -44,6 +78,13 @@
   </style>
 </head>
 <body>
+  <div id="oasis-bg">
+    <div id="sky"></div>
+    <div id="sun"></div>
+    <div id="dunes"></div>
+    <div id="sand"></div>
+    <div id="pond"></div>
+  </div>
   <div id="oasis-loading">جاري تحميل الواحة...</div>
   <canvas id="oasis-canvas"></canvas>
 
@@ -89,7 +130,13 @@
     import { Application } from './runtime.js';
 
     const SCENE_URL   = './scene.splinecode';
-    const TOTAL_PALMS = 9;          // palms in the Spline scene (Palm_01 … Palm_09)
+
+    // Real object names in this scene: a base "Palm tree_03" plus nine
+    // "Palm tree_03 Instance[ N]" clones (10 palms total). The previous code
+    // looked for "Palm_01"… which never matched, so growth did nothing.
+    const PALM_NAMES = ['Palm tree_03', 'Palm tree_03 Instance'];
+    for (let i = 2; i <= 9; i++) PALM_NAMES.push('Palm tree_03 Instance ' + i);
+    const TOTAL_PALMS = PALM_NAMES.length; // 10
 
     const canvas    = document.getElementById('oasis-canvas');
     const loadingEl = document.getElementById('oasis-loading');
@@ -97,8 +144,8 @@
 
     // ── Helpers ───────────────────────────────────────────────────────
 
-    function findPalm(i) {
-      const name = 'Palm_' + String(i).padStart(2, '0');
+    function findPalm(idx) {
+      const name = PALM_NAMES[idx];
       let obj = null;
       try { obj = spline.findObjectByName ? spline.findObjectByName(name) : null; } catch (_) {}
       if (!obj) try { obj = spline.getObjectByName ? spline.getObjectByName(name) : null; } catch (_) {}
@@ -109,23 +156,27 @@
     function applyGrowth(progressPct) {
       const pct = Math.max(0.0, Math.min(1.0, progressPct));
       const visibleCount = Math.max(1, Math.min(TOTAL_PALMS,
-        1 + Math.floor((pct * 100) / 12.5)
+        Math.round(1 + pct * (TOTAL_PALMS - 1))
       ));
-      for (let i = 1; i <= TOTAL_PALMS; i++) {
+      for (let i = 0; i < TOTAL_PALMS; i++) {
         const obj = findPalm(i);
-        if (obj) obj.visible = (i <= visibleCount);
+        if (obj) obj.visible = (i < visibleCount);
       }
+      if (spline.requestRender) spline.requestRender();
     }
 
-    /** Applies a CSS filter to the canvas based on health score (0–100). */
+    /** Applies a CSS filter to the whole scene (palms + background) based on
+     *  health score (0–100) — smooth, so any value has its own dryness. */
+    const bg = document.getElementById('oasis-bg');
     function applyHealth(healthScore) {
-      if (healthScore >= 80) {
-        canvas.style.filter = 'none';
-      } else if (healthScore >= 50) {
-        canvas.style.filter = 'saturate(0.7)';
-      } else {
-        canvas.style.filter = 'saturate(0.3) sepia(0.35)';
-      }
+      const h = Math.max(0, Math.min(100, healthScore));
+      // 100 → vivid; 0 → desaturated + sun-baked sepia.
+      const sat = (0.35 + 0.65 * (h / 100)).toFixed(2);
+      const sepia = (0.45 * (1 - h / 100)).toFixed(2);
+      const bright = (0.85 + 0.15 * (h / 100)).toFixed(2);
+      const filter = `saturate(${sat}) sepia(${sepia}) brightness(${bright})`;
+      canvas.style.filter = filter;
+      if (bg) bg.style.filter = filter;
     }
 
     // Expose to global scope so Flutter Native can call via runJavaScript.
@@ -160,6 +211,15 @@
     spline.load(SCENE_URL)
       .then(() => {
         if (loadingEl) loadingEl.style.display = 'none';
+        // Make the WebGL background transparent so the styled oasis backdrop
+        // (sky / sun / sand / pond) behind the canvas shows through — without
+        // this the scene renders on an opaque dark void.
+        try { spline.setBackgroundColor('transparent'); } catch (_) {}
+        // Hide the scene's own base platform ("Plane"/"Plane 2") — we render
+        // our own styled sand/pond ground, so the built-in slab must go.
+        ['Plane', 'Plane 2'].forEach((n) => {
+          try { const o = spline.findObjectByName(n); if (o) o.visible = false; } catch (_) {}
+        });
         applyGrowth(0.0);          // start with 1 palm
         applyHealth(100);          // start healthy
         _sceneReady = true;

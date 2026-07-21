@@ -4,7 +4,7 @@ import '../theme/app_theme.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
 import '../widgets/common_widgets.dart';
-import '../widgets/oasis_garden_view.dart';
+import '../widgets/palm_oasis_viewer.dart';
 import 'goal_dialog.dart';
 
 class FarmScreen extends StatefulWidget {
@@ -23,8 +23,11 @@ class _FarmScreenState extends State<FarmScreen> {
   late final ApiService _api = widget.api ?? ApiService();
   late Future<List<Object?>> _dataFuture;
 
-  // DashboardSummary drives the oasis — same data source as the Dashboard
+  // DashboardSummary drives the 3D scene — same data source as the Dashboard
   // tab, ensuring perfect sync (wallet balance, goal progress, health score).
+  DashboardSummary? _cachedSummary;
+  PalmOasisController? _oasisController;
+
   static final _fmt = NumberFormat('#,##0', 'ar');
 
   @override
@@ -44,14 +47,26 @@ class _FarmScreenState extends State<FarmScreen> {
 
   void _refresh() {
     setState(() {
+      _cachedSummary = null;
       _load();
     });
   }
 
-  /// Savings-goal completion ratio (0..1) that drives how many palms grow.
-  double _progressFor(DashboardSummary s) => s.activeGoalTarget > 0
-      ? (s.savingsWalletBalance / s.activeGoalTarget).clamp(0.0, 1.0)
-      : 0.0;
+  // ── 3D scene sync ─────────────────────────────────────────────────────────
+
+  /// Sends growth + health to the Spline scene using the same wallet balance
+  /// and health score that the Dashboard tab shows — guarantees full sync.
+  void _applyOasisState() {
+    final ctrl    = _oasisController;
+    final summary = _cachedSummary;
+    if (ctrl == null || !ctrl.isSceneReady || summary == null) return;
+
+    final progress = summary.activeGoalTarget > 0
+        ? (summary.savingsWalletBalance / summary.activeGoalTarget).clamp(0.0, 1.0)
+        : 0.0;
+
+    ctrl.updateOasisState(progress: progress, health: summary.oasisHealthScore);
+  }
 
   // ── Goal lifecycle helpers ────────────────────────────────────────────────
 
@@ -159,89 +174,84 @@ class _FarmScreenState extends State<FarmScreen> {
       appBar: AppBar(title: const Text('الواحة'), centerTitle: true),
       body: RefreshIndicator(
         onRefresh: () async => _refresh(),
-        child: FutureBuilder<List<Object?>>(
-          future: _dataFuture,
-          builder: (context, snapshot) {
-            final loaded = snapshot.hasData && !snapshot.hasError;
-            final summary = loaded ? snapshot.data![0] as DashboardSummary : null;
-            final oasis = loaded ? snapshot.data![1] as OasisState : null;
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            // ── Section 1: 3D Scene ───────────────────────────────────────
+            PalmOasisViewer(
+              height: oasisHeight,
+              onControllerReady: (ctrl) {
+                _oasisController = ctrl;
+                _applyOasisState(); // may be no-op if data not yet loaded
+              },
+            ),
 
-            // The oasis animates with live data once loaded; while loading it
-            // shows a calm, fully-healthy starter oasis (1 palm, clear skies).
-            final progress = summary != null ? _progressFor(summary) : 0.0;
-            final health = summary?.oasisHealthScore ?? 100.0;
+            // ── Sections 2–4: FinTech cards ───────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+              child: FutureBuilder<List<Object?>>(
+                future: _dataFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 48),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return ErrorRetryView(
+                      message: friendlyLoadErrorMessage(snapshot.error),
+                      onRetry: _refresh,
+                    );
+                  }
 
-            return ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                // ── Section 1: Animated Oasis (Flutter-native) ────────────
-                OasisGardenView(
-                  height: oasisHeight,
-                  progress: progress,
-                  health: health,
-                ),
+                  final summary = snapshot.data![0] as DashboardSummary;
+                  final oasis   = snapshot.data![1] as OasisState;
 
-                // ── Sections 2–4: FinTech cards ───────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
-                  child: _buildCards(snapshot, summary, oasis),
-                ),
-              ],
-            );
-          },
+                  // Cache and re-sync scene with canonical financial data.
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _cachedSummary = summary;
+                    _applyOasisState();
+                  });
+
+                  final achieved  = _isGoalAchieved(summary);
+                  final goalId    = summary.activeGoal?.goalId.toString();
+                  final savedAmt  = summary.savingsWalletBalance;
+
+                  return Column(
+                    children: [
+                      // Section 2: الهدف المالي ──────────────────────────
+                      _GoalCard(
+                        hasGoal:       summary.activeGoal != null,
+                        isGoalAchieved: achieved,
+                        goalTitle:     summary.activeGoal?.title,
+                        savedAmount:   savedAmt,
+                        targetAmount:  summary.activeGoalTarget,
+                        fmt:           _fmt,
+                        onComplete: (achieved && goalId != null)
+                            ? () => _onCompleteGoal(goalId)
+                            : null,
+                        onCancel: (!achieved && goalId != null)
+                            ? () => _onCancelGoal(goalId, savedAmt)
+                            : null,
+                        onCreateGoal: _onCreateGoal,
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Section 3: حالة الري والحيوية ────────────────────
+                      _VitalityCard(healthScore: summary.oasisHealthScore),
+                      const SizedBox(height: 14),
+
+                      // Section 4: أيام الالتزام ─────────────────────────
+                      _CommitmentCard(streakDays: oasis.currentStreakDays),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _buildCards(
-    AsyncSnapshot<List<Object?>> snapshot,
-    DashboardSummary? summary,
-    OasisState? oasis,
-  ) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 48),
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (snapshot.hasError || summary == null || oasis == null) {
-      return ErrorRetryView(
-        message: friendlyLoadErrorMessage(snapshot.error),
-        onRetry: _refresh,
-      );
-    }
-
-    final achieved = _isGoalAchieved(summary);
-    final goalId = summary.activeGoal?.goalId.toString();
-    final savedAmt = summary.savingsWalletBalance;
-
-    return Column(
-      children: [
-        // Section 2: الهدف المالي ──────────────────────────
-        _GoalCard(
-          hasGoal: summary.activeGoal != null,
-          isGoalAchieved: achieved,
-          goalTitle: summary.activeGoal?.title,
-          savedAmount: savedAmt,
-          targetAmount: summary.activeGoalTarget,
-          fmt: _fmt,
-          onComplete:
-              (achieved && goalId != null) ? () => _onCompleteGoal(goalId) : null,
-          onCancel: (!achieved && goalId != null)
-              ? () => _onCancelGoal(goalId, savedAmt)
-              : null,
-          onCreateGoal: _onCreateGoal,
-        ),
-        const SizedBox(height: 14),
-
-        // Section 3: حالة الري والحيوية ────────────────────
-        _VitalityCard(healthScore: summary.oasisHealthScore),
-        const SizedBox(height: 14),
-
-        // Section 4: أيام الالتزام ─────────────────────────
-        _CommitmentCard(streakDays: oasis.currentStreakDays),
-      ],
     );
   }
 }
