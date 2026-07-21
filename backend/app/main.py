@@ -12,13 +12,14 @@ A catch-all route at the bottom serves index.html for all unmatched paths,
 enabling Flutter's client-side router to work correctly.
 """
 
+import json
 import logging
 import mimetypes
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -138,6 +139,28 @@ _FLUTTER_BUILD = (
     Path(__file__).resolve().parents[2] / "athar_frontend" / "build" / "web"
 )
 
+def _build_index_html() -> str:
+    """
+    Reads the compiled index.html and injects a small runtime-config script
+    (`window.atharEnv`) carrying the PUBLIC Supabase URL + anon key from the
+    server's own environment. This lets the same web bundle authenticate on
+    any host without those values being baked in at `flutter build` time —
+    important on hosts (e.g. Render) that don't pass env vars as Docker build
+    args. Only the anon key (designed to be shipped to browsers) is exposed
+    here — never the service key or JWT secret.
+    """
+    raw = (_FLUTTER_BUILD / "index.html").read_text(encoding="utf-8")
+    config = {
+        "SUPABASE_URL": settings.SUPABASE_URL or "",
+        "SUPABASE_ANON_KEY": settings.SUPABASE_ANON_KEY or "",
+    }
+    script = f"<script>window.atharEnv={json.dumps(config)};</script>"
+    # Insert right after <head> so it runs before Flutter's bootstrap.
+    if "<head>" in raw:
+        return raw.replace("<head>", "<head>\n    " + script, 1)
+    return script + raw
+
+
 if _FLUTTER_BUILD.exists():
     app.mount(
         "/flutter-static",
@@ -146,9 +169,12 @@ if _FLUTTER_BUILD.exists():
     )
 
     _FLUTTER_BUILD_RESOLVED = _FLUTTER_BUILD.resolve()
+    # Cache the injected HTML once at startup (config comes from env, fixed
+    # for the process lifetime).
+    _INDEX_HTML = _build_index_html()
 
     @app.get("/{full_path:path}", include_in_schema=False)
-    async def serve_flutter_spa(full_path: str) -> FileResponse:
+    async def serve_flutter_spa(full_path: str) -> Response:
         """
         Serves a specific static file when it exists, or falls back to
         index.html so Flutter's client-side router handles the path.
@@ -170,4 +196,5 @@ if _FLUTTER_BUILD.exists():
                 )
         except ValueError:
             pass
-        return FileResponse(_FLUTTER_BUILD / "index.html")
+        # Fall through to the SPA entrypoint, with runtime config injected.
+        return HTMLResponse(_INDEX_HTML)
