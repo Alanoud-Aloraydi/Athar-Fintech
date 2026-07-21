@@ -9,7 +9,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-High%20Performance-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Flutter](https://img.shields.io/badge/Flutter-Web-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
-[![Spline](https://img.shields.io/badge/Spline-3D%20Engine-FF3366?style=for-the-badge&logo=spline&logoColor=white)](https://spline.design/)
+[![Three.js](https://img.shields.io/badge/Three.js-3D%20Engine-000000?style=for-the-badge&logo=three.js&logoColor=white)](https://threejs.org/)
 [![Status](https://img.shields.io/badge/Status-MVP%20Complete-brightgreen?style=for-the-badge)]()
 
 </div>
@@ -34,8 +34,9 @@ Athar **never sends transaction data to a third-party LLM or external AI API**. 
 - Categorization logic runs entirely inside the Business Layer — fully deterministic, auditable, and zero data leakage.
 
 ### 🌴 Dynamic 3D Gamification Engine
-- Real-time 3D Oasis powered by **Spline**, assets **fully vendored locally** (no CDN dependency).
-- Palm count (1–9) and health filter driven by the user's savings wallet balance and spending health score.
+- Real-time procedural 3D Oasis powered by **Three.js** (vendored locally, no CDN): 30 palms
+  placed by a golden-angle (phyllotaxis) formula around a 3D pond on a 3D sand ground.
+- Palm count (1–30) and scene health driven by the user's savings wallet balance and spending health score.
 - Scene synced across Dashboard and Oasis tabs via the same `DashboardSummaryDTO` source of truth.
 
 ### 💰 Two-Ledger Financial Model
@@ -78,11 +79,11 @@ Strict **3-Tier Layered Architecture** (Presentation → Business → Persistenc
 | **Cryptography** | `cryptography` (Python) | — | Required for ES256 asymmetric JWT support |
 | **Rate Limiting** | SlowAPI | — | API endpoint protection |
 | **Config** | pydantic-settings | — | Type-safe env variable loading |
-| **3D Engine** | Spline | — | 3D Oasis scene (assets vendored locally) |
+| **3D Engine** | Three.js | r128 | Procedural 3D Oasis scene (vendored locally) |
 | **Internationalization** | intl (Dart) | — | Arabic/English number & date formatting |
 | **HTTP Client** | http (Dart) | — | Flutter → FastAPI API calls |
 
-> **Note on Spline assets:** `runtime.js`, `scene.splinecode`, and all WASM modules are vendored inside `athar_frontend/assets/oasis/`. The app makes **zero CDN requests** at runtime for 3D content.
+> **Note on 3D assets:** the oasis is a fully procedural Three.js scene — `oasis_viewer.html` plus a locally-vendored `three.min.js` inside `athar_frontend/assets/oasis/`. The app makes **zero CDN requests** at runtime for 3D content, and there is no external scene file or watermark.
 
 ---
 
@@ -121,14 +122,12 @@ Routers **never** call repositories directly — they call a Facade method, whic
 │   │   │   └── main_navigation_screen.dart
 │   │   └── widgets/
 │   │       ├── palm_oasis_viewer.dart     # PalmOasisController wrapper
-│   │       ├── oasis_iframe_web.dart      # Web postMessage bridge to Spline HTML
+│   │       ├── oasis_iframe_web.dart      # Web postMessage bridge to the 3D HTML
 │   │       └── common_widgets.dart        # Shared UI components
 │   ├── assets/
 │   │   └── oasis/
-│   │       ├── oasis_viewer.html          # Spline host page (postMessage API)
-│   │       ├── runtime.js                 # Spline runtime (vendored, no CDN)
-│   │       ├── scene.splinecode           # 3D Oasis scene file
-│   │       └── *.wasm                     # Spline WASM modules (vendored)
+│   │       ├── oasis_viewer.html          # Procedural Three.js oasis (postMessage API)
+│   │       └── three.min.js               # Three.js r128 (vendored, no CDN)
 │   └── test/
 │       └── dashboard_screen_error_test.dart
 │
