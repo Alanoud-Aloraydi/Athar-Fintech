@@ -39,6 +39,12 @@ import sys
 from datetime import datetime, timedelta, timezone, date
 from pathlib import Path
 
+# Windows consoles default to a legacy codepage that can't print emoji/Arabic.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 # --- Make the backend package importable so we reuse the REAL engines --------
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO_ROOT / "backend"))
@@ -161,28 +167,32 @@ def _client():
 
 def _get_or_create_demo_user(sb) -> str:
     """Return the demo user's UUID, creating the auth user if needed."""
-    # Try to find an existing user with this email first (idempotent re-seed).
+    # Try to create the user. If it already exists, fall back to signing in
+    # (more reliable than admin.list_users, which errors on some projects).
     try:
-        page = sb.auth.admin.list_users()
-        users = page if isinstance(page, list) else getattr(page, "users", []) or []
-        for u in users:
-            if (getattr(u, "email", None) or "").lower() == DEMO_EMAIL.lower():
-                print(f"↺ Reusing existing demo user: {DEMO_EMAIL}")
-                return u.id
-    except Exception as exc:  # noqa: BLE001 — listing is best-effort
-        print(f"  (could not list users: {exc}; will try to create)")
+        resp = sb.auth.admin.create_user(
+            {
+                "email": DEMO_EMAIL,
+                "password": DEMO_PASSWORD,
+                "email_confirm": True,
+                "user_metadata": {"full_name": DEMO_FULL_NAME, "demo": True},
+            }
+        )
+        user = getattr(resp, "user", None) or resp
+        if getattr(user, "id", None):
+            print(f"✅ Created demo user: {DEMO_EMAIL}")
+            return user.id
+    except Exception as exc:  # noqa: BLE001 — likely "already registered"
+        print(f"  (create_user: {exc}; signing in to fetch the existing id)")
 
-    resp = sb.auth.admin.create_user(
-        {
-            "email": DEMO_EMAIL,
-            "password": DEMO_PASSWORD,
-            "email_confirm": True,
-            "user_metadata": {"full_name": DEMO_FULL_NAME, "demo": True},
-        }
+    # Fallback: sign in on a throwaway client so the main service client keeps
+    # its service-role auth (needed to bypass RLS for the seed writes).
+    tmp = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    auth = tmp.auth.sign_in_with_password(
+        {"email": DEMO_EMAIL, "password": DEMO_PASSWORD}
     )
-    user = getattr(resp, "user", None) or resp
-    print(f"✅ Created demo user: {DEMO_EMAIL}")
-    return user.id
+    print(f"↺ Reusing existing demo user: {DEMO_EMAIL}")
+    return auth.user.id
 
 
 def _wipe(sb, user_id: str) -> None:
