@@ -347,8 +347,8 @@ class AnalyticsFacade:
         """
         Returns (trajectory_deviation, trajectory_delay_months).
 
-        trajectory_deviation = expected_savings_to_date - actual_saved_amount.
-        Positive  → ahead of schedule.
+        trajectory_deviation = actual_saved_amount - expected_savings_to_date.
+        Positive  → ahead of schedule (saved more than the linear pace).
         Negative  → behind schedule.
         """
         if active_goal is None:
@@ -372,9 +372,13 @@ class AnalyticsFacade:
 
         elapsed = max(0, (today - created_at).days)
         expected = min(active_goal.target_amount, (elapsed / total_days) * active_goal.target_amount)
-        deviation = round(expected - active_goal.saved_amount, 2)
+        # actual − expected: positive means saved more than the linear pace
+        # (ahead), negative means behind. The previous formula was inverted,
+        # which flipped the ahead/behind sign AND made the delay estimate
+        # below fire when the user was ahead instead of behind.
+        deviation = round(active_goal.saved_amount - expected, 2)
 
-        # Estimate delay months only when behind.
+        # Estimate delay months only when behind (deviation < 0).
         delay_months = 0.0
         if deviation < 0 and total_days > 0:
             monthly_rate = active_goal.target_amount / max(1, total_days / 30)
