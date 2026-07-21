@@ -33,7 +33,6 @@ class CategorizationEngine:
     _en_rules: dict[str, CategoryEnum] = {
         # ── Food & Dining ────────────────────────────────────────────────
         "burger king": CategoryEnum.FOOD,    # longest first for regex
-        "apple music": CategoryEnum.FOOD,    # placeholder: overridden by ENTERTAINMENT below
         "gas station": CategoryEnum.TRANSPORT,
         "farm superstore": CategoryEnum.GROCERIES,
         "saudi aramco": CategoryEnum.UTILITIES,
