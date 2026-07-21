@@ -1,0 +1,26 @@
+# Keep the Docker build context small and reproducible.
+
+# Version control / IDE
+.git
+.gitignore
+.idea
+.vscode
+
+# Python caches / local envs
+**/__pycache__/
+**/*.pyc
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+backend/.env
+
+# Flutter build output & caches — rebuilt fresh inside the image
+athar_frontend/build/
+athar_frontend/.dart_tool/
+athar_frontend/.flutter-plugins
+athar_frontend/.flutter-plugins-dependencies
+
+# Misc large / irrelevant assets
+attached_assets/
+*.log

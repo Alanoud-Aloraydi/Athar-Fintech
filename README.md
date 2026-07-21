@@ -15,14 +15,32 @@
 </div>
 
 ---
-Live Demo: https://drive.google.com/file/d/1TwwIKmniQ0JET9fD8qABkJQ2oGZ0aJ8t/view?usp=sharing
 
+## 🔗 Try it live
+
+**▶️ Live app:** https://athar-fintech.onrender.com
+
+Log in with the ready-made demo account — no signup needed:
+
+| Email | Password |
+|-------|----------|
+| `demo@athar-fintech.app` | `AtharDemo2026` |
+
+The demo account is pre-loaded with a realistic ~30-day Saudi financial story
+(Saudi merchants, essential obligations, a savings goal, a saving streak, and a
+flagged spending anomaly) so every feature is visible immediately.
+
+> First load may take ~50s while the free host wakes up, then it's fast.
+> Video walkthrough: https://drive.google.com/file/d/1TwwIKmniQ0JET9fD8qABkJQ2oGZ0aJ8t/view?usp=sharing
+> Want to deploy your own copy? See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
+
+---
 
 ## 🪷 Overview
 
 **Athar** *(Arabic: أَثر — "trace" or "impact")* is built on a simple but powerful premise: **every financial decision leaves a trace.**
 
-Instead of burying users in spreadsheets and jargon, Athar renders their financial life as a **3D Palm Tree Oasis (واحة)**. Disciplined saving and healthy spending habits cause the Oasis to flourish with up to 9 palms; reckless spending causes it to wither. It's financial literacy, gamified — without ever compromising on bank-grade engineering rigor or user privacy.
+Instead of burying users in spreadsheets and jargon, Athar renders their financial life as a **3D Palm Tree Oasis (واحة)**. Disciplined saving and healthy spending habits cause the Oasis to flourish with up to 30 palms; reckless spending causes it to wither. It's financial literacy, gamified — without ever compromising on bank-grade engineering rigor or user privacy.
 
 ---
 
@@ -164,13 +182,28 @@ Routers **never** call repositories directly — they call a Facade method, whic
 │   │       │   └── transactions.py
 │   │       └── dependencies.py           # FastAPI DI wiring (repos → facades)
 │   ├── supabase/
-│   │   └── migrations/                   # 000–005 SQL migration files
+│   │   └── migrations/                   # 000–007 SQL migration files
 │   └── requirements.txt
 │
-├── scripts/                          # Utility scripts
-├── start.sh                          # Single entry point: pip install → flutter build → uvicorn
+├── scripts/
+│   └── seed_demo.py                  # Plants the ready-to-try demo account + data
+├── docs/
+│   └── DEPLOYMENT.md                 # Step-by-step guide to host it live (free)
+├── Dockerfile                        # Multi-stage build: Flutter web + FastAPI in one image
+├── render.yaml                       # One-click Render Blueprint (single public URL)
+├── start.sh                          # Local/Replit entry: pip install → flutter build → uvicorn
 └── replit.md                         # Developer notes & Replit-specific config
 ```
+
+---
+
+## 🚀 Deploying live (recommended)
+
+The fastest way to a public, shareable link is a **free Render service** that
+serves the API and the Flutter web app from one URL — full walkthrough in
+**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** (deploy + seed the demo account in
+about 10 minutes). The [`Dockerfile`](Dockerfile) and [`render.yaml`](render.yaml)
+make it a Blueprint deploy: connect the repo, paste your Supabase keys, done.
 
 ---
 
@@ -221,7 +254,7 @@ Backend: FastAPI endpoints are covered by the Swagger UI and manual integration 
 |--------|------|------------|
 | **Alanoud Aloraydi** | 🔧 Backend Engineer & Integration | FastAPI, Persistence, Categorization Engine |
 | **Sarah** | 🎨 Frontend Engineer | Flutter UI/UX & Design |
-| **Reema Alshahrani** | 🎮 Gamification | Flutter–Spline Integration & 3D Oasis Logic |
+| **Reema Alshahrani** | 🎮 Gamification | Flutter–Three.js Integration & 3D Oasis Logic |
 
 </div>
 

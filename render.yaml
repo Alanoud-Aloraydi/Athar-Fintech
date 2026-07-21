@@ -1,0 +1,35 @@
+# =============================================================================
+# Render Blueprint — one free web service that hosts the whole app.
+#
+# How to use:
+#   1. Push this repo to GitHub (already done).
+#   2. On Render: New +  ->  Blueprint  ->  pick the Athar-Fintech repo.
+#   3. Render reads this file, then prompts for the secret env vars below
+#      (they are marked `sync: false`, so they are NEVER stored in git).
+#   4. Paste the four Supabase values, click Apply, and wait for the build.
+#
+# Render automatically exposes these env vars as Docker build args, so the
+# Flutter build stage picks up SUPABASE_URL / SUPABASE_ANON_KEY.
+#
+# Note (free plan): the service sleeps after ~15 min idle; the first request
+# after sleeping takes ~50s to wake, then it is fast again.
+# =============================================================================
+services:
+  - type: web
+    name: athar-fintech
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # --- Supabase (paste in the Render dashboard; never committed) ---------
+      - key: SUPABASE_URL
+        sync: false          # e.g. https://xxxx.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false          # public anon key (client + build arg)
+      - key: SUPABASE_JWT_SECRET
+        sync: false          # verifies the login token on every request
+      - key: SUPABASE_SERVICE_KEY
+        sync: false          # server-side admin key (optional at runtime)
